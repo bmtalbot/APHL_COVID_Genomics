@@ -20,7 +20,7 @@ library(crayon)
 
 #Importing Data Table for results from runs 21-53
 
-runresults <- read.csv("batches_2001-2161.run-results_withBatch_link_blinded2.0.csv")
+runresults <- read.csv("sequencerun_data.csv")
 
 ```
 
@@ -36,7 +36,7 @@ runresults <- read.csv("batches_2001-2161.run-results_withBatch_link_blinded2.0.
 
 <!-- header content -->
 <!-- Uncomment the line of code below to include a header -->
-<!-- \graphicspath{C:/Users/beeta/OneDrive/APHL_Genomics_Specialist} -->
+#<!-- \graphicspath{C:/Users/beeta/OneDrive/APHL_Genomics_Specialist} -->
 \fancyhead[L]{\raisebox{-0.05\height}{\includegraphics[height = 2.5cm]{"Commonwealth_MA_sign.png"}}}
 \fancyhead[R]{\Huge MASPHL Genomic Sequencing Run Report\\
 \Large `r paste("Report Date:", Sys.Date(), "for batch", tail(runresults$batch_id, n=1), "sequenced", tail(runresults$seq_date, n=1)) `}
@@ -108,8 +108,8 @@ runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
 
 #Getting some summary information about the Central Tendency for the variables of interest, in order to make a summary table
 
-library(psych)
-rr_describe <- describe(runresults2)
+#library(psych)
+#rr_describe <- describe(runresults2)
 #lots of skewed data, so consider reporting the median and IQR values
 
 #creating a summary table
@@ -132,9 +132,9 @@ runresults_join <- left_join(runresults2, a, by = "batch_id") %>% mutate(human_r
 
 rr_clean <- runresults_join %>% select(batch_id, seq_date, sample_id, collection_date, assembly_status, Assembly_Count, Assembly_Count_Fail, pangolin_lineage, nextclade_lineage, fastqc_raw_reads_1, pairs_kept_after_cleaning, percent_kept_after_cleaning, coverage_after_trimming, num_ACTG, num_N, meanbaseq_trim, meanmapq_trim, percent_human_reads, percent_SC2_reads) %>%  mutate(human_reads = (percent_human_reads * fastqc_raw_reads_1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw_reads_1)/100)
 
-rr_clean_desc <- describe(rr_clean, na.rm = TRUE)
+#rr_clean_desc <- describe(rr_clean, na.rm = TRUE)
 
-rr_clean_desc_gr <- describe.by(rr_clean, group = rr_clean$batch_id, na.rm = TRUE)
+#rr_clean_desc_gr <- describe.by(rr_clean, group = rr_clean$batch_id, na.rm = TRUE)
 
 
 clean_batchsummary <- rr_clean %>% group_by(batch_id) %>% summarise(n = n(), Seqdate = max(seq_date),
@@ -260,12 +260,17 @@ Current_Run$Control_Status <- if_else(Current_Run$Limit <= Current_Run$num_ACTG,
     \ffigbox{%
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.show="hold", out.width="100%"}
 
+f <- as.data.frame(table(Current_Run$collection_date))
+
 ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date)) +
-      scale_x_date(labels = date_format("%b %d, %y"))  +
+      scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$seq_date), date_breaks = "2 weeks")  +
       ylab("Number of Isolates") + xlab("Collection Date of Isolate") +
+      geom_vline(aes(xintercept = Current_Run$seq_date), linetype = "dashed") +
+      geom_text(aes(x=Current_Run$seq_date, y = max(f$Freq),label="Sequencing \nDate",hjust=1, family = "serif"), size = 4.5) +
       #ggtitle("Run Isolates Count and Collection Dates") +
       theme_classic() +
-      theme(plot.title = element_text(hjust=0.5), axis.title.x = element_text(size = 14), axis.title.y = element_text(size=14))
+      theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 14), axis.title.y = element_text(size=14))
+
 ```
     }{\caption*{Isolate Collection Dates}}
     \ttabbox{%
@@ -273,45 +278,37 @@ ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = coll
 
 library(formattable)
 
-Current_Run_Controls <- Current_Run %>% filter(seq_date==max(seq_date)) %>% filter(is.na(collection_date)) %>% select(sample_id, num_ACTG, Limit, Control_Status)
+Current_Run_Controls <- Current_Run %>% filter(seq_date==max(seq_date)) %>% filter(is.na(collection_date)) %>% select(sample_id, num_ACTG, Limit, Control_Status) %>% filter(!(str_detect(sample_id,"HSC")))
 
 knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "Num ACTG Detected", "Limit", "Interpretation"), align = "c")
 
 # %>% kable_styling(position = "left")
 ```
-    }{\caption*{Control Samples Stats}}
+    }{\caption*{Control Samples Stats}
+      \caption{Sample Key}}
   \end{floatrow}
 \end{figure}
 
 ```{r, echo=FALSE, out.width="90%", warning=FALSE,message=FALSE}
 
-# ggplot(tail(clean_batchsummary_table,n=8), aes(x=batch_id, y = Per_Passing, fill=batch_id)) +
-#   geom_point(aes(x=batch_id, y=Per_Passing, group=1), color = "red") + geom_text(aes(label=Per_Passing), vjust = -0.5) +
-#   geom_path(aes(x=batch_id, y=Per_Passing, group=1), color = "red") +
-#   geom_his(aes(x=batch_id, y=1*Freq, fill=)) +
-#   scale_fill_manual(values=c("gray78","gray78","gray78", "gray78","gray78","gray78","gray78","blue")) +
-#    ylab("Number of Sequences in Batch") +
-#   xlab("Batch ID") +
-#   ggtitle("Number and Percent of Passing Assemblies") +
-#     #scale_y_continuous(sec.axis = sec_axis(~./1, name = "Number of Passing Sequences")) +
-#     theme_classic() + theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
-
-
 cols <- c("gray78","blue")
 names(cols) <- c("FAIL", "PASS")
 
-ggplot(tail(Assemblies, n=16), aes(x=batch_id, y=Percent, fill=assembly_status, color=batch_id)) +
-  geom_point(aes(x=batch_id, y=Percent, group=1), color = "red") + geom_text(aes(label=Percent), vjust = -0.5) +
-  geom_path(aes(x=batch_id, y=Percent, group=1), color = "red") +
+#Creates a list of Unique batch IDs to controls for batches that have no "Pass" or no "Fail" sequences
+Assemblies_Set <- Assemblies$batch_id %>% unique() %>% tail(8)
+
+ggplot(Assemblies[which(Assemblies$batch_id %in% Assemblies_Set),], aes(x=Percent, y=batch_id, fill=assembly_status, color=batch_id, label = n)) +
   geom_bar(position="stack", stat="identity", size = 2) + 
   scale_fill_manual(values=c(cols)) +
-  scale_color_manual(values=c(rep("white", times=8),"black")) +
-  ylab("Percent of Sequences in Batch") +
-  xlab("Batch ID") +
+  scale_color_manual(values=c(rep("white", times=7),"black")) +
+  xlab("Percent of Sequences in Batch") +
+  ylab("Batch ID") +
   ggtitle("Assemblies Status of Sequences") +
+  labs(caption = "Values in bars represent number of sequences in category") +
   theme_classic() + 
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x=element_text(color=c(rep("black",times=8),"blue"),face="bold")) + 
-  guides(fill=guide_legend(title="Assembly Status"), color = FALSE)
+  theme(plot.title = element_text(hjust = 0.5), axis.text.y=element_text(color=c(rep("black",times=8),"blue"),face="bold"), plot.caption = element_text(hjust = 0),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3)) + 
+  guides(fill=guide_legend(title="Assembly Status"), color = FALSE) + 
+  geom_text(position = "stack", hjust= 1.4)
 
 
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batch_id, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
@@ -329,7 +326,8 @@ rawplot <- ggplot(lastfive, aes(x=batch_id, y=fastqc_raw_reads_1)) +
   labs(title = "Median Number of Raw Reads", x = "Batch ID", y = "Number of Reads") +
   theme_classic() +
   scale_y_continuous(labels = scales::comma) +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
+
 
 clean_plot <- ggplot(lastfive, aes(x=batch_id, y=pairs_kept_after_cleaning)) + 
   geom_boxplot(aes(color=batch_id)) + 
@@ -337,7 +335,7 @@ clean_plot <- ggplot(lastfive, aes(x=batch_id, y=pairs_kept_after_cleaning)) +
   labs(title = "Median Number of Cleaned Read Pairs", x = "Batch ID", y = "Number of Read Pairs") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
 
 ```
 
@@ -364,7 +362,7 @@ human_plot <- ggplot(dat, aes(x=batch_id, y=human_reads)) +
   labs(title = "Median Number of Human Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma, limits = c(0,1000000)) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8)) 
+  theme(legend.position = "none", text = element_text(family="serif"), plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold",), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8)) 
 
 dat2 <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch_id) %>% mutate(is_outlier=ifelse(is_outlier(SC2_reads), SC2_reads, as.numeric(NA)))
 dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
@@ -376,7 +374,7 @@ SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
   labs(title = "Median Number of SARS-COV-2 Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
+  theme(legend.position = "none", text = element_text(family="serif"),plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
 
 library(cowplot)
 
@@ -413,7 +411,7 @@ human_plot <- ggplot(dat, aes(x=batch_id, y=human_reads)) +
   labs(title = "Median Number of Human Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), text = element_text(family="serif"))
 
 dat2 <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch_id) %>% mutate(is_outlier=ifelse(is_outlier(SC2_reads), SC2_reads, as.numeric(NA)))
 dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
@@ -425,7 +423,7 @@ SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
   labs(title = "Median Number of SARS-COV-2 Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), text = element_text(family="serif"))
 
 ```
 
@@ -436,4 +434,6 @@ human_plot
 SCOV_plot
 
 ```
+
+
 
