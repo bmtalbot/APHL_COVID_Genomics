@@ -64,16 +64,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Let's get some basic understanding of the data structure, with an emphasis on what rows represent, and how many batches there are, and the average number of sequences in each batch; as well as if there is anything funky in the collection dates
 
-#library(tidyverse)
-#library(tinytex)
 library(lubridate)
 library(dplyr)
 library(data.table)
 library(scales)
 library(tibble)
 library(tidyverse)
-
-#library(kableExtra)
 
 
 #converting the dates from character to numeric
