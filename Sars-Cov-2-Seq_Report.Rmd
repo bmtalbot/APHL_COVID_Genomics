@@ -257,6 +257,8 @@ g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x =
                                             theme_classic()  +
                                                   theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 14), axis.title.y = element_text(size=14))
 
+g
+
 #g + geom_vline(aes(xintercept = seq_date), linetype = "dashed") +
 #                                      geom_text(aes(x=seq_date, y = 0,label="Sequencing Date", family = "serif"), size = 4.5, angle = 90, vjust = -0.4,hjust = -0.75)
 
