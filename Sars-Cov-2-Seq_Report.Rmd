@@ -18,7 +18,7 @@ urlcolor: purplepeopleeater
 
 library(crayon)
 
-#Importing Data Table for results from runs 21-53
+#Importing Data Table
 
 runresults <- read.csv("sequencerun_data.csv")
 
@@ -61,8 +61,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-
-#Let's get some basic understanding of the data structure, with an emphasis on what rows represent, and how many batches there are, and the average number of sequences in each batch; as well as if there is anything funky in the collection dates
 
 library(lubridate)
 library(dplyr)
@@ -219,11 +217,6 @@ Assemblies$Percent <- round((Assemblies$n/Assemblies$n_batch)*100, digits = 2)
                               #nth(Assemblies,-2L)  ~ "#FFFFFF")
 
 
-#write.csv(clean_batchsummary_table, "C:/Users/beeta/OneDrive/APHL Genomics Specialist/BatchSummary_58.csv", row.names = FALSE)
-
-
-
-
 # Summary of `r paste(tail(runresults$batch_id, n=1))`Batch Sample Quality
 
 ```{r, include=FALSE}
@@ -248,14 +241,13 @@ Current_Run$Control_Status <- if_else(Current_Run$Limit <= Current_Run$num_ACTG,
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.show="hold", out.width="100%"}
 
-g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date)) +
-              scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$seq_date), date_breaks = "2 weeks")  +
+g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date), binwidth=1) +
+              scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$seq_date), date_breaks = "1 week")  +
                     ylab("Number of Isolates") + xlab("Collection Date of Isolate") +
                           #geom_vline(aes(xintercept = seq_date), linetype = "dashed") +
                                # geom_text(aes(x=seq_date, y = 0,label="Sequencing Date", family = "serif"), size = 4.5, angle = 90, vjust = -0.4,hjust = -0.75) +
-                                      ggtitle("Run Isolates Count and Collection Dates") +
                                             theme_classic()  +
-                                                  theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 14), axis.title.y = element_text(size=14))
+                                                  theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 16), axis.title.y = element_text(size=16), axis.text=element_text(size=12), axis.text.x = element_text(angle = 45, hjust=1)
 
 g
 
@@ -271,12 +263,11 @@ library(formattable)
 
 Current_Run_Controls <- Current_Run %>% filter(seq_date==max(seq_date)) %>% filter(is.na(collection_date)) %>% select(sample_id, num_ACTG, Limit, Control_Status) %>% filter(!(str_detect(sample_id,"HSC")))
 
-knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "Num ACTG Detected", "Limit", "Interpretation"), align = "c")
+knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "ACTG Detected", "Limit", "Interpretation"), align = "c")
 
 
 ```
-    }{\caption*{Control Samples Stats}
-      \caption{Sample Key}}
+    }{\caption*{Contamination Stats}}
   \end{floatrow}
 \end{figure}
 
@@ -288,19 +279,16 @@ names(cols) <- c("FAIL", "PASS")
 #Creates a list of Unique batch IDs to controls for batches that have no "Pass" or no "Fail" sequences
 Assemblies_Set <- Assemblies$batch_id %>% unique() %>% tail(8)
 
-ggplot(Assemblies[which(Assemblies$batch_id %in% Assemblies_Set),], aes(x=Percent, y=batch_id, fill=assembly_status, color=batch_id, label = n)) +
+ggplot(Assemblies[which(Assemblies$batch_id %in% Assemblies_Set),], aes(x=Percent, y=batch_id, fill=assembly_status, color=batch_id)) +
   geom_bar(position="stack", stat="identity", size = 2) +
   scale_fill_manual(values=c(cols)) +
   scale_color_manual(values=c(rep("white", times=7),"black")) +
-  xlab("Percent of Sequences in Batch") +
-  ylab("Batch ID") +
   ggtitle("Assemblies Status of Sequences") +
-  labs(caption = "Values in bars represent number of sequences in category") +
+  labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Values in bars represent number of sequences in category") +
   theme_classic() +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.y=element_text(color=c(rep("black",times=8),"blue"),face="bold"), plot.caption = element_text(hjust = 0),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3)) +
+  theme(plot.title = element_text(hjust = 0.5, size=16), axis.text.y=element_text(color=c(rep("black",times=8),"blue"),face="bold"), plot.caption = element_text(hjust = 0),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3, size=16),axis.title.x = element_text(size = 16)) +
   guides(fill=guide_legend(title="Assembly Status"), color = FALSE) +
-  geom_text(position = "stack", hjust= 1.4)
-
+  geom_text(aes(label=n),color="white", position = "stack", hjust= 1.4)
 
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batch_id, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
     #layout(yaxis = list(title = 'Count'), barmode = 'stack')
@@ -319,7 +307,6 @@ rawplot <- ggplot(lastfive, aes(x=batch_id, y=fastqc_raw_reads_1)) +
   scale_y_continuous(labels = scales::comma) +
   theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
 
-
 clean_plot <- ggplot(lastfive, aes(x=batch_id, y=pairs_kept_after_cleaning)) +
   geom_boxplot(aes(color=batch_id)) +
   scale_color_manual(values=c("black", "black", "black", "black", "blue"))+
@@ -329,7 +316,6 @@ clean_plot <- ggplot(lastfive, aes(x=batch_id, y=pairs_kept_after_cleaning)) +
   theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
 
 ```
-
 ```{r, echo=FALSE, include=FALSE, message=FALSE, error=FALSE}
 
 library(tibble)
@@ -370,7 +356,6 @@ SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
 library(cowplot)
 
 ```
-
 ```{r echo=FALSE, warning=FALSE, error=FALSE, fig.show="hold", fig.align='left', fig.width=8, fig.height=7}
 
 #par(mar = c(4, 4, .1, .1))
@@ -380,7 +365,6 @@ library(cowplot)
 plot_grid(rawplot, clean_plot, human_plot, SCOV_plot, ncol = 2, nrow = 2, scale = 0.9)
 
 ```
-
 ```{r, echo=FALSE, include=FALSE}
 
 library(tibble)
@@ -393,7 +377,6 @@ dat <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch
 dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
 
 ggplot(dat, aes(y=human_reads, x=factor(batch_id))) + geom_boxplot() + geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05)
-
 
 human_plot <- ggplot(dat, aes(x=batch_id, y=human_reads)) +
   geom_boxplot(aes(color=batch_id)) +
@@ -417,8 +400,6 @@ SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
   theme(legend.position = "none", plot.title = element_text(hjust = 0.5), text = element_text(family="serif"))
 
 ```
-
-
 ```{r Figure2, echo=FALSE, fig.show="hold", out.width="50%", fig.align='left', fig.cap="Boxes represent the median, 25th, and 75th percentiles", include=FALSE}
 par(mar = c(4, 4, .1, .1))
 human_plot
