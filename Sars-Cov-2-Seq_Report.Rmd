@@ -62,8 +62,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
 
-#Let's get some basic understanding of the data structure, with an emphasis on what rows represent, and how many batches there are, and the average number of sequences in each batch; as well as if 
-there is anything funky in the collection dates
+#Let's get some basic understanding of the data structure, with an emphasis on what rows represent, and how many batches there are, and the average number of sequences in each batch; as well as if there is anything funky in the collection dates
 
 #library(tidyverse)
 #library(tinytex)
@@ -426,4 +425,4 @@ SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
 par(mar = c(4, 4, .1, .1))
 human_plot
 SCOV_plot
-
+```
