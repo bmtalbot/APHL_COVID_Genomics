@@ -17,14 +17,10 @@ urlcolor: purplepeopleeater
 ```{r, echo=FALSE, include=FALSE}
 
 library(crayon)
-library(tidyverse)
 
-#Importing Data Table
+#Importing Data Table for results from runs 21-53
 
-#runresults <- read.csv("sequencerun_data.csv")
-runresults <- read.csv("Sample_table_2021-11-01.csv")
-
-runresults$batch_id <- str_remove(runresults$batch_id, "batch_")
+runresults <- read.csv("sequencerun_data.csv")
 
 ```
 
@@ -40,6 +36,7 @@ runresults$batch_id <- str_remove(runresults$batch_id, "batch_")
 
 <!-- header content -->
 <!-- Uncomment the line of code below to include a header -->
+<!-- \graphicspath{C:/Users/beeta/OneDrive/APHL_Genomics_Specialist} -->
 <!-- \fancyhead[L]{\raisebox{-0.05\height}{\includegraphics[height = 2.5cm]{"Commonwealth_MA_sign.png"}}}-->
 \fancyhead[L]{\Huge MASPHL Genomic Sequencing Run Report\\
 \Large `r paste("Report Date:", Sys.Date(), "for batch", tail(runresults$batch_id, n=1), "sequenced", tail(runresults$seq_date, n=1)) `}
@@ -63,9 +60,12 @@ runresults$batch_id <- str_remove(runresults$batch_id, "batch_")
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
-
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
 
+#Let's get some basic understanding of the data structure, with an emphasis on what rows represent, and how many batches there are, and the average number of sequences in each batch; as well as if there is anything funky in the collection dates
+
+#library(tidyverse)
+#library(tinytex)
 library(lubridate)
 library(dplyr)
 library(data.table)
@@ -73,23 +73,34 @@ library(scales)
 library(tibble)
 library(tidyverse)
 
+#library(kableExtra)
+
 
 #converting the dates from character to numeric
-runresults$collection_date <- as_date(runresults$collection_date, format = "%m/%d/%Y")
-runresults$seq_date <- as_date(runresults$seq_date, format = "%m/%d/%Y")
+runresults$collection_date <- as_date(runresults$collection_date, format = "%Y-%m-%d")
+runresults$seq_date <- as_date(runresults$seq_date, format = "%Y-%m-%d")
 
 #Flagging for any results that are out of the date range
 daterange <- function(t) {
   ifelse(t < 2020-01-01, 1, 0)}
 
+#Prints all results that are outside of the esxpected date range
+#print(runresults[daterange(runresults$collection_date)==0,])
+
 
 #code excludes the sequences that were not run (collection date = blank)
 runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
-      mutate(Assembly_Count = case_when(assembly_status %in% "PASS" ~ 1, assembly_status %in% "FAIL" ~ 0)) %>%
-  mutate(Assembly_Count_Fail = case_when(assembly_status %in% "FAIL" ~ 1, assembly_status %in% "PASS" ~ 0)) %>%
+      mutate(Assembly_Count = case_when(assembly_status %in% "PASS" ~ 1, assembly_status %in% "FAIL" ~ 0)) %>%       
+  mutate(Assembly_Count_Fail = case_when(assembly_status %in% "FAIL" ~ 1, assembly_status %in% "PASS" ~ 0)) %>%      
       mutate(percent_SC2_reads = case_when(X._SARS.COV.2_reads == 'TBD' ~ NA_real_, TRUE ~ as.numeric(X._SARS.COV.2_reads))) %>%
-      mutate(percent_human_reads = case_when(X._human_reads == 'TBD' ~ NA_real_, TRUE ~ as.numeric(X._human_reads)))
+      mutate(percent_human_reads = case_when(X._human_reads == 'TBD' ~ NA_real_, TRUE ~ as.numeric(X._human_reads))) 
 
+
+#Getting some summary information about the Central Tendency for the variables of interest, in order to make a summary table
+
+#library(psych)
+#rr_describe <- describe(runresults2)
+#lots of skewed data, so consider reporting the median and IQR values
 
 #creating a summary table
 
@@ -105,39 +116,49 @@ a <- batchsummary %>% select(batch_id, Pass_Group)
 runresults_join <- left_join(runresults2, a, by = "batch_id") %>% mutate(human_reads = (percent_human_reads * fastqc_raw_reads_1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw_reads_1)/100)
 
 
+#Next, remove columns that are not helpful (or rather, select the "helpful" ones)
+
+# batch ID, sequence date, pangolin lineage, nextclade lineage, fastqc_raw_reads_1, pairs_kept_after_cleaning, percent_kept_after_cleaning, num_ACTG, assembly_status, human_reads, X._SARS.COV.2_reads, num_N, meanbaseq_trim, meanmapq_trim
+
 rr_clean <- runresults_join %>% select(batch_id, seq_date, sample_id, collection_date, assembly_status, Assembly_Count, Assembly_Count_Fail, pangolin_lineage, nextclade_lineage, fastqc_raw_reads_1, pairs_kept_after_cleaning, percent_kept_after_cleaning, coverage_after_trimming, num_ACTG, num_N, meanbaseq_trim, meanmapq_trim, percent_human_reads, percent_SC2_reads) %>%  mutate(human_reads = (percent_human_reads * fastqc_raw_reads_1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw_reads_1)/100)
+
+#rr_clean_desc <- describe(rr_clean, na.rm = TRUE)
+
+#rr_clean_desc_gr <- describe.by(rr_clean, group = rr_clean$batch_id, na.rm = TRUE)
 
 
 clean_batchsummary <- rr_clean %>% group_by(batch_id) %>% summarise(n = n(), Seqdate = max(seq_date),
-                                                                MinDate = min(collection_date, na.rm = TRUE),
-                                                                MaxDate = max(collection_date, na.rm = TRUE),
+                                                                MinDate = min(collection_date, na.rm = TRUE),        
+                                                                MaxDate = max(collection_date, na.rm = TRUE),        
                                                                 pass_number = sum(Assembly_Count),
                                                                 fail_number = sum(Assembly_Count_Fail),
                                                                 Median_rawread = median(fastqc_raw_reads_1, na.rm = TRUE),
                                                                 rawreadQ25 = quantile(fastqc_raw_reads_1, probs = 0.25, na.rm = TRUE),
                                                                 rawreadQ75 = quantile(fastqc_raw_reads_1, probs = 0.75, na.rm = TRUE),
 
-                                                                 Median_cleanread = median(pairs_kept_after_cleaning, na.rm = TRUE), 
+                                                                 Median_cleanread = median(pairs_kept_after_cleaning, na.rm = TRUE),
                                                                 cleaningQ25 = quantile(pairs_kept_after_cleaning, probs = 0.25, na.rm = TRUE),
                                                                 cleaningQ75 = quantile(pairs_kept_after_cleaning, probs = 0.75, na.rm = TRUE),
 
-                                                                 Median_trim = median(coverage_after_trimming, na.rm = TRUE),
+                                                                 Median_trim = median(coverage_after_trimming, na.rm 
+= TRUE),
                                                                 coveragetrimQ25 = quantile(coverage_after_trimming, 0.25, na.rm = TRUE),
-                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 0.75, na.rm = TRUE),
+                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 
+0.75, na.rm = TRUE),
 
-                                                                Median_ACTG = median(num_ACTG, na.rm = TRUE),
+                                                                Median_ACTG = median(num_ACTG, na.rm = TRUE),        
                                                                 ACTG_Q25 = quantile(num_ACTG, probs = .25, na.rm = TRUE),
-                                                                  ACTG_Q75 = quantile(num_ACTG, probs = .75, na.rm = TRUE),
+                                                                  ACTG_Q75 = quantile(num_ACTG, probs = .75, na.rm = 
+TRUE),
 
                                                                 Median_N = median(num_N, na.rm = TRUE),
-                                                                N_Q25 = quantile(num_N, probs = 0.25, na.rm = TRUE),
+                                                                N_Q25 = quantile(num_N, probs = 0.25, na.rm = TRUE), 
                                                                  N_Q75 = quantile(num_N, probs = 0.75, na.rm = TRUE),
-
                                                                 Median_humanreads = median(human_reads, na.rm = TRUE),
                                                                 humanreasd_Q25 = quantile(human_reads, probs = .25, na.rm = TRUE),
                                                                 humanreasd_Q75 = quantile(human_reads, probs = .75, na.rm = TRUE),
 
-                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),
+                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),   
                                                                 SC2reads_Q25 = quantile(SC2_reads, probs = 0.25, na.rm = TRUE),
                                                                 SC2reads_Q75 = quantile(SC2_reads, probs = 0.75, na.rm = TRUE))
 
@@ -150,8 +171,8 @@ clean_batchsummary_table$Batch <- as.integer(clean_batchsummary_table$Batch)
 
 #total
 clean_batchsummary_total <- rr_clean %>% summarise(n = n(), Seqdate = max(seq_date),
-                                                                MinDate = min(collection_date, na.rm = TRUE),
-                                                                MaxDate = max(collection_date, na.rm = TRUE),
+                                                                MinDate = min(collection_date, na.rm = TRUE),        
+                                                                MaxDate = max(collection_date, na.rm = TRUE),        
                                                                 pass_number = sum(Assembly_Count),
                                                                 Median_rawread = median(fastqc_raw_reads_1, na.rm = TRUE),
                                                                 rawreadQ25 = quantile(fastqc_raw_reads_1, probs = 0.25, na.rm = TRUE),
@@ -161,23 +182,25 @@ clean_batchsummary_total <- rr_clean %>% summarise(n = n(), Seqdate = max(seq_da
                                                                 cleaningQ25 = quantile(pairs_kept_after_cleaning, probs = 0.25, na.rm = TRUE),
                                                                 cleaningQ75 = quantile(pairs_kept_after_cleaning, probs = 0.75, na.rm = TRUE),
 
-                                                                 Median_trim = median(coverage_after_trimming, na.rm = TRUE),
+                                                                 Median_trim = median(coverage_after_trimming, na.rm 
+= TRUE),
                                                                 coveragetrimQ25 = quantile(coverage_after_trimming, 0.25, na.rm = TRUE),
-                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 0.75, na.rm = TRUE),
+                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 
+0.75, na.rm = TRUE),
 
-                                                                Median_ACTG = median(num_ACTG, na.rm = TRUE),
+                                                                Median_ACTG = median(num_ACTG, na.rm = TRUE),        
                                                                 ACTG_Q25 = quantile(num_ACTG, probs = .25, na.rm = TRUE),
-                                                                  ACTG_Q75 = quantile(num_ACTG, probs = .75, na.rm = TRUE),
+                                                                  ACTG_Q75 = quantile(num_ACTG, probs = .75, na.rm = 
+TRUE),
 
                                                                 Median_N = median(num_N, na.rm = TRUE),
-                                                                N_Q25 = quantile(num_N, probs = 0.25, na.rm = TRUE),
+                                                                N_Q25 = quantile(num_N, probs = 0.25, na.rm = TRUE), 
                                                                  N_Q75 = quantile(num_N, probs = 0.75, na.rm = TRUE),
-
                                                                 Median_humanreads = median(human_reads, na.rm = TRUE),
                                                                 humanreasd_Q25 = quantile(human_reads, probs = .25, na.rm = TRUE),
                                                                 humanreasd_Q75 = quantile(human_reads, probs = .75, na.rm = TRUE),
 
-                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),
+                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),   
                                                                 SC2reads_Q25 = quantile(SC2_reads, probs = 0.25, na.rm = TRUE),
                                                                 SC2reads_Q75 = quantile(SC2_reads, probs = 0.75, na.rm = TRUE))
 clean_batchsummary_total <- clean_batchsummary_total %>% mutate(SampleRange = paste(MinDate, MaxDate, sep = " - ")) %>% mutate(Per_Passing = pass_number/n*100)
@@ -189,7 +212,8 @@ clean_batchsummary_total$Batch <- 0
 
 clean_batchsum_all <- rbind(clean_batchsummary_table, clean_batchsummary_total, fill=TRUE)
 
-lastfive <- rr_clean %>% filter(batch_id %in% tail(clean_batchsummary_table$batch_id,n=8))
+lastfive <- rr_clean %>% filter(batch_id %in% tail(clean_batchsummary_table$batch_id,n=5))
+
 
 Assemblies <- rr_clean %>% group_by(seq_date, batch_id,assembly_status) %>% summarise(n = n())
 Assemblies <- rownames_to_column(Assemblies, "Row")
@@ -197,9 +221,19 @@ x <- rr_clean %>% group_by(batch_id) %>% summarise(n_batch =n())
 Assemblies <- left_join(Assemblies, x, by = "batch_id")
 Assemblies$Percent <- round((Assemblies$n/Assemblies$n_batch)*100, digits = 2)
 
-```
 
-# Current Run Statistics
+#Assemblies$color <- case_when(Assemblies$assembly_status %in% "FAIL" ~ "#e8b3b3",
+                              #Assemblies$assembly_status=="PASS" & Assemblies$Row %in% last(Assemblies$Row)  ~ "#FFFFFF",
+                              #nth(Assemblies,-2L)  ~ "#FFFFFF")
+
+
+#write.csv(clean_batchsummary_table, "C:/Users/beeta/OneDrive/APHL Genomics Specialist/BatchSummary_58.csv", row.names = FALSE)
+
+
+
+
+# Summary of `r paste(tail(runresults$batch_id, n=1))`Batch Sample Quality
+
 ```{r, include=FALSE}
 
 Current_Run <- runresults %>% filter(seq_date==max(seq_date)) %>%
@@ -218,20 +252,18 @@ Current_Run$Control_Status <- if_else(Current_Run$Limit <= Current_Run$num_ACTG,
 
 \begin{figure}\CenterFloatBoxes
   \begin{floatrow}
-  \captionsetup{font={Large}}
     \ffigbox{%
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.show="hold", out.width="100%"}
 
-g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date), binwidth=1) +
-              scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$seq_date), date_breaks = "1 week")  +
+g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date)) +
+              scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$seq_date), date_breaks = "2 weeks")  +
                     ylab("Number of Isolates") + xlab("Collection Date of Isolate") +
-                          geom_vline(aes(xintercept = seq_date), linetype = "dashed") +
-                               geom_text(aes(x=seq_date, y = 0,label="Sequencing Date", family = "serif"), size = 6, angle = 90, vjust = -0.4,hjust = -0.75) +
+                          #geom_vline(aes(xintercept = seq_date), linetype = "dashed") +
+                               # geom_text(aes(x=seq_date, y = 0,label="Sequencing Date", family = "serif"), size = 4.5, angle = 90, vjust = -0.4,hjust = -0.75) +
+                                      ggtitle("Run Isolates Count and Collection Dates") +
                                             theme_classic()  +
-                                                  theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 24), axis.title.y = element_text(size=24), axis.text=element_text(size=16), axis.text.x = element_text(angle = 45, hjust=1))
-
-g
+                                                  theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 14), axis.title.y = element_text(size=14))
 
 #g + geom_vline(aes(xintercept = seq_date), linetype = "dashed") +
 #                                      geom_text(aes(x=seq_date, y = 0,label="Sequencing Date", family = "serif"), size = 4.5, angle = 90, vjust = -0.4,hjust = -0.75)
@@ -245,14 +277,15 @@ library(formattable)
 
 Current_Run_Controls <- Current_Run %>% filter(seq_date==max(seq_date)) %>% filter(is.na(collection_date)) %>% select(sample_id, num_ACTG, Limit, Control_Status) %>% filter(!(str_detect(sample_id,"HSC")))
 
-knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "ACTG Detected", "Limit", "Interpretation"), align = "c")
+knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "Num ACTG Detected", "Limit", "Interpretation"), align = "c")
+
 
 ```
-    }{\caption*{Contamination Stats}}
+    }{\caption*{Control Samples Stats}
+      \caption{Sample Key}}
   \end{floatrow}
 \end{figure}
 
-# Current and Historic Trends
 ```{r, echo=FALSE, out.width="90%", warning=FALSE,message=FALSE}
 
 cols <- c("gray78","blue")
@@ -261,45 +294,56 @@ names(cols) <- c("FAIL", "PASS")
 #Creates a list of Unique batch IDs to controls for batches that have no "Pass" or no "Fail" sequences
 Assemblies_Set <- Assemblies$batch_id %>% unique() %>% tail(8)
 
-ggplot(Assemblies[which(Assemblies$batch_id %in% Assemblies_Set),], aes(x=Percent, y=batch_id, fill=assembly_status, color=batch_id)) +
+ggplot(Assemblies[which(Assemblies$batch_id %in% Assemblies_Set),], aes(x=Percent, y=batch_id, fill=assembly_status, 
+color=batch_id, label = n)) +
   geom_bar(position="stack", stat="identity", size = 2) +
   scale_fill_manual(values=c(cols)) +
   scale_color_manual(values=c(rep("white", times=7),"black")) +
+  xlab("Percent of Sequences in Batch") +
+  ylab("Batch ID") +
   ggtitle("Assemblies Status of Sequences") +
-  labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Values in bars represent number of sequences in category") +
+  labs(caption = "Values in bars represent number of sequences in category") +
   theme_classic() +
-  theme(plot.title = element_text(hjust = 0.5, size=16), axis.text.y=element_text(color=c(rep("black",times=10),"blue"),face="bold"), plot.caption = element_text(hjust = 0, size = 14),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3, size=15),axis.title.x = element_text(size = 16)) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.y=element_text(color=c(rep("black",times=8),"blue"),face="bold"), plot.caption = element_text(hjust = 0),text = element_text(family="serif"), axis.title.y = element_text(vjust 
+= 3)) +
   guides(fill=guide_legend(title="Assembly Status"), color = FALSE) +
-  geom_text(aes(label=n),color="white", position = "stack", hjust= 1.4, face="bold")
+  geom_text(position = "stack", hjust= 1.4)
+
 
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batch_id, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
     #layout(yaxis = list(title = 'Count'), barmode = 'stack')
 ```
-\newpage
+\newpage{}
+
+# Summary of Reads
 
 ```{r,echo=FALSE, include=FALSE, message=FALSE, error=FALSE}
 
 rawplot <- ggplot(lastfive, aes(x=batch_id, y=fastqc_raw_reads_1)) +
   geom_boxplot(aes(color=batch_id)) +
-  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+  scale_color_manual(values=c("black", "black", "black", "black", "blue"))+
   labs(title = "Median Number of Raw Reads", x = "Batch ID", y = "Number of Reads") +
   theme_classic() +
   scale_y_continuous(labels = scales::comma) +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold", angle=45), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10), text = element_text(family="serif"))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size 
+= 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
+
 
 clean_plot <- ggplot(lastfive, aes(x=batch_id, y=pairs_kept_after_cleaning)) +
   geom_boxplot(aes(color=batch_id)) +
-  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+  scale_color_manual(values=c("black", "black", "black", "black", "blue"))+
   labs(title = "Median Number of Cleaned Read Pairs", x = "Batch ID", y = "Number of Read Pairs") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold",angle=45), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10), text = element_text(family="serif"))
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size 
+= 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8), text = element_text(family="serif"))
 
 ```
 
 ```{r, echo=FALSE, include=FALSE, message=FALSE, error=FALSE}
 
 library(tibble)
+#library(ggbreak)
 
 
 is_outlier <- function(x) {
@@ -314,12 +358,13 @@ ggplot(dat, aes(y=human_reads, x=factor(batch_id))) + geom_boxplot() + geom_text
 
 human_plot <- ggplot(dat, aes(x=batch_id, y=human_reads)) +
   geom_boxplot(aes(color=batch_id)) +
-   #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
-  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue")) +
+   #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) + 
+  scale_color_manual(values=c("black", "black", "black", "black", "blue")) +
   labs(title = "Median Number of Human Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma, limits = c(0,1000000)) +
   theme_classic() +
-  theme(legend.position = "none", text = element_text(family="serif"), plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold",angle = 45), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10))
+  theme(legend.position = "none", text = element_text(family="serif"), plot.title = element_text(hjust = 0.5, size = 
+10), axis.text.x = element_text(size = 8, face = "bold",), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
 
 dat2 <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch_id) %>% mutate(is_outlier=ifelse(is_outlier(SC2_reads), SC2_reads, as.numeric(NA)))
 dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
@@ -327,11 +372,11 @@ dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
 SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
   geom_boxplot(aes(color=batch_id)) +
   #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
-  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+  scale_color_manual(values=c("black", "black", "black", "black", "blue"))+
   labs(title = "Median Number of SARS-COV-2 Reads", x = "Batch ID", y = "Number of Reads") +
   scale_y_continuous(labels = scales::comma) +
   theme_classic() +
-  theme(legend.position = "none", text = element_text(family="serif"),plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold", angle=45), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10))
+  theme(legend.position = "none", text = element_text(family="serif"),plot.title = element_text(hjust = 0.5, size = 10), axis.text.x = element_text(size = 8, face = "bold"), axis.title.x = element_text(size = 8), axis.title.y = element_text(size = 8))
 
 library(cowplot)
 
@@ -344,5 +389,50 @@ library(cowplot)
 #clean_plot
 
 plot_grid(rawplot, clean_plot, human_plot, SCOV_plot, ncol = 2, nrow = 2, scale = 0.9)
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+
+library(tibble)
+
+is_outlier <- function(x) {
+  return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
+}
+
+dat <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch_id) %>% mutate(is_outlier=ifelse(is_outlier(human_reads), human_reads, as.numeric(NA)))
+dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
+
+ggplot(dat, aes(y=human_reads, x=factor(batch_id))) + geom_boxplot() + geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05)
+
+
+human_plot <- ggplot(dat, aes(x=batch_id, y=human_reads)) +
+  geom_boxplot(aes(color=batch_id)) +
+   #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
+  scale_color_manual(values=c("black", "black", "black", "black", "blue")) +
+  labs(title = "Median Number of Human Reads", x = "Batch ID", y = "Number of Reads") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), text = element_text(family="serif"))       
+
+dat2 <- lastfive %>% tibble::rownames_to_column(var="outlier") %>% group_by(batch_id) %>% mutate(is_outlier=ifelse(is_outlier(SC2_reads), SC2_reads, as.numeric(NA)))
+dat$sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
+
+SCOV_plot <- ggplot(dat2, aes(x=batch_id, y=SC2_reads)) +
+  geom_boxplot(aes(color=batch_id)) +
+  #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
+  scale_color_manual(values=c("black", "black", "black", "black", "blue"))+
+  labs(title = "Median Number of SARS-COV-2 Reads", x = "Batch ID", y = "Number of Reads") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), text = element_text(family="serif"))       
+
+```
+
+
+```{r Figure2, echo=FALSE, fig.show="hold", out.width="50%", fig.align='left', fig.cap="Boxes represent the median, 25th, and 75th percentiles", include=FALSE}
+par(mar = c(4, 4, .1, .1))
+human_plot
+SCOV_plot
 
 ```
