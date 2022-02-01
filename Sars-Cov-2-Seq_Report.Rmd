@@ -18,17 +18,19 @@ urlcolor: purplepeopleeater
 
 library(crayon)
 library(tidyverse)
+library(lubridate)
 
 #Importing Data Table
 
-runresults <- read.csv("sequencerun_data.csv")
+
+runresults <- read.csv("example_terra_data.csv")
+
 runresults$batchid <- str_remove(runresults$batchid, "batch_")
 
 runresults <- runresults %>% mutate(analysis_date =  if_else(!(titan_illumina_pe_analysis_date %in% .), titan_illumina_pe_analysis_date, titan_clearlabs_analysis_date))
 runresults$analysis_date <- as_date(runresults$analysis_date, format = "%Y-%m-%d")
-
-
-
+runresults$collection_date <- as_date(runresults$collection_date, format = "%Y-%m-%d")
+runresults$sample_id <- runresults$entity.sample_id
 
 ```
 
@@ -70,7 +72,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
 
-library(lubridate)
+
 library(dplyr)
 library(data.table)
 library(scales)
@@ -78,7 +80,7 @@ library(tibble)
 library(tidyverse)
 library(cowplot)
 
-runresults <- runresults %>% mutate(raw_reads1 =  if_else(!(fastqc_raw %in% .), fastqc_raw, fastqc_raw1)) %>% mutate(rawreads2 = fastqc_raw_reads_2)
+runresults <- runresults %>% mutate(raw_reads1 =  if_else(!(fastqc_raw %in% .), fastqc_raw, fastqc_raw1)) %>% mutate(raw_reads2 = fastqc_raw2)
 
 #Flagging for any results that are out of the date range
 daterange <- function(t) {
@@ -89,8 +91,8 @@ daterange <- function(t) {
 runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
       mutate(Assembly_Count = case_when(assembly_status %in% "PASS" ~ 1, assembly_status %in% "FAIL" ~ 0)) %>%
   mutate(Assembly_Count_Fail = case_when(assembly_status %in% "FAIL" ~ 1, assembly_status %in% "PASS" ~ 0)) %>%
-      mutate(percent_SC2_reads = case_when(kracken_sc_2 == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kracken_sc_2))) %>%
-      mutate(percent_human_reads = case_when(kracken_human == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kracken_human)))
+      mutate(percent_SC2_reads = case_when(kraken_sc2 == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kraken_sc2))) %>%
+      mutate(percent_human_reads = case_when(kraken_human == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kraken_human)))
 
 
 #creating a summary table
@@ -104,10 +106,10 @@ batchsummary <- batchsummary %>% mutate(Pass_Rate = pass_number/n*100) %>% mutat
 
 a <- batchsummary %>% select(batchid, Pass_Group)
 
-runresults_join <- left_join(runresults2, a, by = "batchid") %>% mutate(human_reads = (percent_human_reads * kracken_sc_2)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw1)/100)
+runresults_join <- left_join(runresults2, a, by = "batchid") %>% mutate(human_reads = (percent_human_reads * fastqc_raw1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw1)/100)
 
 
-rr_clean <- runresults_join %>% select(batchid, analysis_date, sample_id, collection_date, assembly_status, Assembly_Count, Assembly_Count_Fail, pangolin_lineage, nextclade_lineage, raw_reads1, raw_reas2, fastqc_clean_pairs, assembly_length_unambiguous, number_N, meanbaseq_trim, meanmapq_trim, percent_human_reads, percent_SC2_reads) %>%  mutate(human_reads = (percent_human_reads * raw_reads1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * raw_reads1)/100)
+rr_clean <- runresults_join %>% select(batchid, analysis_date, sample_id, collection_date, assembly_status, Assembly_Count, Assembly_Count_Fail, raw_reads1, raw_reads2, fastqc_clean_pairs, assembly_length_unambiguous, number_N, meanbaseq_trim, meanmapq_trim, percent_human_reads, percent_SC2_reads) %>%  mutate(human_reads = (percent_human_reads * raw_reads1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * raw_reads1)/100)
 
 
 clean_batchsummary <- rr_clean %>% group_by(batchid) %>% summarise(n = n(), Seqdate = max(analysis_date),
@@ -122,10 +124,6 @@ clean_batchsummary <- rr_clean %>% group_by(batchid) %>% summarise(n = n(), Seqd
                                                                  Median_cleanread = median(fastqc_clean_pairs, na.rm = TRUE), 
                                                                 cleaningQ25 = quantile(fastqc_clean_pairs, probs = 0.25, na.rm = TRUE),
                                                                 cleaningQ75 = quantile(fastqc_clean_pairs, probs = 0.75, na.rm = TRUE),
-
-                                                                 Median_trim = median(coverage_after_trimming, na.rm = TRUE),
-                                                                coveragetrimQ25 = quantile(coverage_after_trimming, 0.25, na.rm = TRUE),
-                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 0.75, na.rm = TRUE),
 
                                                                 Median_ACTG = median(assembly_length_unambiguous, na.rm = TRUE),
                                                                 ACTG_Q25 = quantile(assembly_length_unambiguous, probs = .25, na.rm = TRUE),
@@ -159,14 +157,7 @@ clean_batchsummary_total <- rr_clean %>% summarise(n = n(), Seqdate = max(analys
                                                                 rawreadQ25 = quantile(raw_reads1, probs = 0.25, na.rm = TRUE),
                                                                 rawreadQ75 = quantile(raw_reads1, probs = 0.75, na.rm = TRUE),
 
-                                                                 Median_cleanread = median(fastqc_clean_pairs, na.rm = TRUE),
-                                                                cleaningQ25 = quantile(fastqc_clean_pairs, probs = 0.25, na.rm = TRUE),
-                                                                cleaningQ75 = quantile(fastqc_clean_pairs, probs = 0.75, na.rm = TRUE),
-
-                                                                 Median_trim = median(coverage_after_trimming, na.rm = TRUE),
-                                                                coveragetrimQ25 = quantile(coverage_after_trimming, 0.25, na.rm = TRUE),
-                                                                 coveragetrimQ75 = quantile(coverage_after_trimming, 0.75, na.rm = TRUE),
-
+                                                                
                                                                 Median_ACTG = median(assembly_length_unambiguous, na.rm = TRUE),
                                                                 ACTG_Q25 = quantile(assembly_length_unambiguous, probs = .25, na.rm = TRUE),
                                                                   ACTG_Q75 = quantile(assembly_length_unambiguous, probs = .75, na.rm = TRUE),
