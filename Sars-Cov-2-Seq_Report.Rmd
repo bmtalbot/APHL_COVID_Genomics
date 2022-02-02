@@ -23,7 +23,7 @@ library(lubridate)
 #Importing Data Table
 
 
-runresults <- read.csv("example_terra_data.csv")
+runresults <- read.csv("sequencerun_data.csv")
 
 runresults$batchid <- str_remove(runresults$batchid, "batch_")
 
