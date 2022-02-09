@@ -22,14 +22,13 @@ library(lubridate)
 
 #Importing Data Table
 
-
-runresults <- read.csv("sequencerun_data.csv")
+runresults <- read.csv("sequencerun_data.csv", na.strings = c(""," ", NA))
 
 runresults$batchid <- str_remove(runresults$batchid, "batch_")
 
-runresults <- runresults %>% mutate(analysis_date =  if_else(!(titan_illumina_pe_analysis_date %in% .), titan_illumina_pe_analysis_date, titan_clearlabs_analysis_date))
-runresults$analysis_date <- as_date(runresults$analysis_date, format = "%Y-%m-%d")
-runresults$collection_date <- as_date(runresults$collection_date, format = "%Y-%m-%d")
+runresults <- runresults %>% mutate(analysis_date =  case_when(!(titan_illumina_pe_analysis_date %in% NA) ~ titan_illumina_pe_analysis_date, !(titan_clearlabs_analysis_date %in% NA) ~  titan_clearlabs_analysis_date))
+runresults$analysis_date <- as_date(runresults$analysis_date, format = "%m/%d/%Y")
+runresults$collection_date <- as_date(runresults$collection_date, format = "%m/%d/%Y")
 runresults$sample_id <- runresults$entity.sample_id
 
 ```
@@ -80,7 +79,7 @@ library(tibble)
 library(tidyverse)
 library(cowplot)
 
-runresults <- runresults %>% mutate(raw_reads1 =  if_else(!(fastqc_raw %in% .), fastqc_raw, fastqc_raw1)) %>% mutate(raw_reads2 = fastqc_raw2)
+runresults <- runresults %>% mutate(raw_reads1 =  if_else(!(fastqc_raw %in% NA), fastqc_raw, fastqc_raw1)) %>% mutate(raw_reads2 = fastqc_raw2)
 
 #Flagging for any results that are out of the date range
 daterange <- function(t) {
@@ -191,11 +190,11 @@ Assemblies <- left_join(Assemblies, x, by = "batchid")
 Assemblies$Percent <- round((Assemblies$n/Assemblies$n_batch)*100, digits = 2)
 
 ```
+
 ```{r, include=FALSE}
 
-NTC1 <- runresults %>% filter(runresults$sample_id %like% 'NTC1') %>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
+NTC1 <- runresults %>% filter(runresults$sample_id %like% 'NTC1') #%>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
 NTC2 <- runresults %>% filter(runresults$sample_id %like% 'NTC2') 
-NTC3 <- runresults %>% filter(runresults$sample_id %like% 'NTC3') 
 NEG2 <- runresults %>% filter(runresults$sample_id %like% 'NEG2')
 
 
@@ -263,7 +262,6 @@ NTC1p <- ggplot(NTC1, aes(y = assembly_length_unambiguous, x = batchid, group = 
              x = c(1,1,1,1),
              y = c(52.77,145.60,238.42,331.24), 
              hjust = -0.01)
-
 
 NEG2p <- ggplot(NEG2, aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
   geom_line() +
@@ -363,7 +361,6 @@ assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Se
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batchid, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
     #layout(yaxis = list(title = 'Count'), barmode = 'stack')
 
- 
 
 NTC1p <- ggplot(NTC1[], aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
   geom_line() +
