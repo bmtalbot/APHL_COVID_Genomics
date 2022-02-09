@@ -29,7 +29,7 @@ runresults$batchid <- str_remove(runresults$batchid, "batch_")
 runresults <- runresults %>% mutate(analysis_date =  case_when(!(titan_illumina_pe_analysis_date %in% NA) ~ titan_illumina_pe_analysis_date, !(titan_clearlabs_analysis_date %in% NA) ~  titan_clearlabs_analysis_date))
 runresults$analysis_date <- as_date(runresults$analysis_date, format = "%m/%d/%Y")
 runresults$collection_date <- as_date(runresults$collection_date, format = "%m/%d/%Y")
-runresults$sample_id <- runresults$entity.sample_id
+
 
 ```
 
@@ -96,12 +96,12 @@ runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
 
 #creating a summary table
 
-batchsummary <- runresults2 %>% group_by(batchid) %>% summarise(n = n(), MinDate = min(collection_date, na.rm = TRUE), MaxDate = max(collection_date, na.rm = TRUE), pass_number = sum(Assembly_Count), fail_number = sum(Assembly_Count_Fail))
+batchsummary <- runresults2 %>% filter(!is.na(batchid)) %>% group_by(batchid) %>% summarise(n = n(), MinDate = min(collection_date, na.rm = TRUE), MaxDate = max(collection_date, na.rm = TRUE), pass_number = sum(Assembly_Count, na.rm = TRUE), fail_number = sum(Assembly_Count_Fail, na.rm = TRUE))
 
 #Getting the median and IQR for the pass rate for later analysis
 summary(batchsummary$Pass_Rate)
 
-batchsummary <- batchsummary %>% mutate(Pass_Rate = pass_number/n*100) %>% mutate(Pass_Group = case_when(Pass_Rate <= quantile(Pass_Rate, 0.25) ~ "Q1", quantile(Pass_Rate, 0.25) < Pass_Rate & Pass_Rate <= median(Pass_Rate) ~ "Q2",median(Pass_Rate) < Pass_Rate & Pass_Rate <= quantile(Pass_Rate, 0.75) ~ "Q3",quantile(Pass_Rate, 0.75) < Pass_Rate ~ "Q4"))
+batchsummary <- batchsummary %>% mutate(Pass_Rate = pass_number/n*100, na.rm=TRUE) %>% mutate(Pass_Group = case_when(Pass_Rate <= quantile(Pass_Rate, 0.25) ~ "Q1", quantile(Pass_Rate, 0.25) < Pass_Rate & Pass_Rate <= median(Pass_Rate) ~ "Q2",median(Pass_Rate) < Pass_Rate & Pass_Rate <= quantile(Pass_Rate, 0.75) ~ "Q3",quantile(Pass_Rate, 0.75) < Pass_Rate ~ "Q4"))
 
 a <- batchsummary %>% select(batchid, Pass_Group)
 
@@ -181,7 +181,7 @@ clean_batchsummary_total$Batch <- 0
 
 clean_batchsum_all <- rbind(clean_batchsummary_table, clean_batchsummary_total, fill=TRUE)
 
-lastset <- rr_clean %>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
+lastset <- rr_clean %>% filter(!is.na(batchid)) %>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
 
 Assemblies <- rr_clean %>% group_by(analysis_date, batchid,assembly_status) %>% summarise(n = n())
 Assemblies <- rownames_to_column(Assemblies, "Row")
@@ -288,7 +288,7 @@ NEG2p <- ggplot(NEG2, aes(y = assembly_length_unambiguous, x = batchid, group = 
 # Current Run Statistics
 ```{r, include=FALSE}
 
-Current_Run <- runresults %>% filter(analysis_date==max(analysis_date)) %>%
+Current_Run <- runresults %>% filter(analysis_date==max(analysis_date, na.rm = TRUE)) %>%
   mutate(Limit = case_when(sample_id %like% "HSC" ~ "100",
                            sample_id %like% "NEG" ~ "100",
                            sample_id %like% "NTC" ~ "600",
