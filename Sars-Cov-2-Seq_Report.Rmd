@@ -339,7 +339,7 @@ knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "ACTG De
 \end{figure}
 
 # Current and Historic Trends
-```{r, echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
 cols <- c("gray78","blue")
 names(cols) <- c("FAIL", "PASS")
@@ -360,8 +360,8 @@ assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Se
 
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batchid, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
     #layout(yaxis = list(title = 'Count'), barmode = 'stack')
-
-
+```
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
 NTC1p <- ggplot(NTC1[], aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
   geom_line() +
   geom_point() +
@@ -380,8 +380,9 @@ NTC1p <- ggplot(NTC1[], aes(y = assembly_length_unambiguous, x = batchid, group 
              x = c(1,1,1,1,1),
              y = c(3.26,87,170.73,254.47,338.2), 
              hjust = -0.01)
+```
 
-
+```{r, echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
 plot_grid(assemblies_plot, NTC1p, nrow = 1, ncol = 2, rel_widths = c(1,1))
 ```
 
