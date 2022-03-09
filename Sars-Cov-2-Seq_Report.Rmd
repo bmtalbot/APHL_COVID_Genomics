@@ -29,7 +29,7 @@ runresults$batchid <- str_remove(runresults$batchid, "batch_")
 runresults <- runresults %>% mutate(analysis_date =  case_when(!(titan_illumina_pe_analysis_date %in% NA) ~ titan_illumina_pe_analysis_date, !(titan_clearlabs_analysis_date %in% NA) ~  titan_clearlabs_analysis_date))
 runresults$analysis_date <- as_date(runresults$analysis_date, format = "%Y-%m-%d")
 runresults$collection_date <- as_date(runresults$collection_date, format = "%Y-%m%-%d")
-
+runresults <- runresults[order(runresults$batchid),]
 
 ```
 
