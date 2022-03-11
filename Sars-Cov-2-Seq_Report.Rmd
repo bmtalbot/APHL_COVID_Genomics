@@ -183,7 +183,7 @@ clean_batchsum_all <- rbind(clean_batchsummary_table, clean_batchsummary_total, 
 
 lastset <- rr_clean %>% filter(!is.na(batchid)) %>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
 
-Assemblies <- rr_clean %>% group_by(analysis_date, batchid,assembly_status) %>% summarise(n = n())
+Assemblies <- rr_clean %>% filter(!is.na(batchid)) %>% group_by(analysis_date, batchid,assembly_status) %>% summarise(n = n())
 Assemblies <- rownames_to_column(Assemblies, "Row")
 x <- rr_clean %>% group_by(batchid) %>% summarise(n_batch =n())
 Assemblies <- left_join(Assemblies, x, by = "batchid")
