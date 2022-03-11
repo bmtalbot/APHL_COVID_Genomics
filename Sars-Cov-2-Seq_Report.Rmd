@@ -329,7 +329,13 @@ g
 
 library(formattable)
 
-Current_Run_Controls <- Current_Run %>% filter(analysis_date==max(analysis_date)) %>% filter(is.na(collection_date)) %>% select(sample_id, assembly_length_unambiguous, Limit, Control_Status) %>% filter(!(str_detect(sample_id,"HSC")))
+Current_Run_Controls <- runresults %>% filter(sample_id %like% c('NTC') | sample_id%like% c("NEG")) %>% filter(analysis_date==max(analysis_date)) %>% mutate(Limit = case_when(sample_id %like% "HSC" ~ "100",
+                           sample_id %like% "NEG" ~ "100",
+                           sample_id %like% "NTC" ~ "600",
+                           TRUE ~ "")) 
+Current_Run_Controls$Limit <- as.integer(Current_Run_Controls$Limit) 
+Current_Run_Controls$Control_Status <- if_else(Current_Run_Controls$Limit <= Current_Run_Controls$assembly_length_unambiguous, "Fail","Pass")
+Current_Run_Controls <- Current_Run_Controls%>% select(sample_id, assembly_length_unambiguous, Limit, Control_Status) 
 
 knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "ACTG Detected", "Limit", "Interpretation"), align = "c")
 
