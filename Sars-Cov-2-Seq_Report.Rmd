@@ -47,7 +47,7 @@ runresults <- runresults[order(runresults$batchid),]
 <!-- Uncomment the line of code below to include a header -->
 <!-- \fancyhead[L]{\raisebox{-0.05\height}{\includegraphics[height = 2.5cm]{"Commonwealth_MA_sign.png"}}}-->
 \fancyhead[L]{\Huge MASPHL Genomic Sequencing Run Report\\
-\Large `r paste("Report Date:", Sys.Date(), "for batch", tail(runresults$batchid, n=1), "sequenced", tail(runresults$analysis_date, n=1)) `}
+\Large `r paste("Report Date:", Sys.Date(), "for batch", tail(runresults$batchid[!is.na(runresults$batchid)],n=1), "sequenced", tail(runresults$analysis_date[!is.na(runresults$batchid)], n=1))`}
 
 <!-- create red header line -->
 \renewcommand{\headrulewidth}{1pt}
