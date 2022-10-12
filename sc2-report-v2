@@ -1,0 +1,679 @@
+---
+output:
+  pdf_document:
+    latex_engine: xelatex
+header-includes:
+    - \usepackage{fancyhdr}
+    - \usepackage{fontspec}
+    - \usepackage{xcolor}
+    - \geometry{left = 0.5in,right = 0.5in}
+    - \usepackage{floatrow}
+    - \usepackage{caption}
+#mainfont: Roboto
+#sansfont: Roboto
+urlcolor: purplepeopleeater
+---
+
+```{r, echo=FALSE, include=FALSE}
+
+library(crayon)
+library(tidyverse)
+library(lubridate)
+
+#Importing Data Table
+setwd("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist")
+
+amplicons <- read.table("amplicon_coverage_2022-07-21.txt", header = TRUE)
+
+runresults <- read.table("primer4.1_batches_samples.tsv", sep = "\t", header = TRUE, na.strings = c(""," ", NA), stringsAsFactors = FALSE)
+
+#Update this with the metadata table 
+#runresults <- read.csv("sample_table_2022-03-16.csv",  na.strings = c(""," ", NA))
+
+runresults$batchid <- str_remove(runresults$batchid, "batch_")
+
+#runresults <- runresults %>% mutate(analysis_date =  case_when(!(titan_illumina_pe_analysis_date %in% NA) ~ titan_illumina_pe_analysis_date, !(theiacov_illumina_pe_analysis_date %in% NA) ~  theiacov_illumina_pe_analysis_date))
+#runresults$analysis_date <- as_date(runresults$theiacov_illumina_pe_analysis_date, format = "%m/%d/%Y")
+#runresults$collection_date <- as_date(runresults$collection_date, format = "%m/%d/%Y")
+runresults <- runresults %>% filter(!runresults$theiacov_illumina_pe_analysis_date %in% c(""," ", NA))
+runresults <- runresults %>% mutate(analysis_date = theiacov_illumina_pe_analysis_date)
+runresults$collection_date <- as.Date(runresults$collection_date, format = "%Y-%m-%d")
+runresults$analysis_date <- as.Date(runresults$analysis_date, format = "%Y-%m-%d")
+runresults <- runresults[order(runresults$batchid),]
+
+
+```
+
+<!-- define color and adjust lengths for header and footer-->
+\definecolor{purplepeopleeater}{RGB}{106,13,75}
+\addtolength{\headheight}{3.0cm}
+\addtolength{\topmargin}{-0.5in}
+\addtolength{\footskip}{-0.225in}
+
+<!-- % setup header -->
+\pagestyle{fancy}
+\fancyhf{}
+
+<!-- header content -->
+<!-- Uncomment the line of code below to include a header -->
+<!-- \fancyhead[L]{\raisebox{-0.05\height}{\includegraphics[height = 2.5cm]{"Commonwealth_MA_sign.png"}}}-->
+\fancyhead[L]{\Huge MASPHL Genomic Sequencing Run Report\\
+\Large `r paste("Report Date:", Sys.Date(), "for batch", tail(runresults$batchid[!is.na(runresults$batchid)],n=1), "sequenced", tail(runresults$analysis_date[!is.na(runresults$batchid)], n=1)) `}
+
+<!-- create red header line -->
+\renewcommand{\headrulewidth}{1pt}
+\renewcommand{\headrule}{\hbox to\headwidth{%
+    \color{purplepeopleeater}\leaders\hrule height \headrulewidth\hfill}}
+
+<!-- footer content -->
+\fancyfoot[C]{For research use only, not for clinical use.}
+\fancyfoot[R]{\thepage}
+
+<!-- create red footer line -->
+\renewcommand{\footrulewidth}{1pt}
+\renewcommand{\footrule}{\hbox to\headwidth{%
+    \color{purplepeopleeater}\leaders\hrule height \headrulewidth\hfill}}
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+
+
+library(dplyr)
+library(data.table)
+library(tibble)
+library(tidyverse)
+library(cowplot)
+library(scales)
+
+runresults <- runresults %>% mutate(raw_reads1 = fastqc_raw1) %>% mutate(raw_reads2 = fastqc_raw2)
+
+#Flagging for any results that are out of the date range
+daterange <- function(t) {
+  ifelse(t < 2020-01-01, 1, 0)}
+
+
+#code excludes the sequences that were not run (collection date = blank)
+runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
+      mutate(Assembly_Count = case_when(assembly_status %in% "PASS" ~ 1, assembly_status %in% "FAIL" ~ 0)) %>%
+  mutate(Assembly_Count_Fail = case_when(assembly_status %in% "FAIL" ~ 1, assembly_status %in% "PASS" ~ 0)) %>%
+      mutate(percent_SC2_reads = case_when(kraken_sc2 == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kraken_sc2))) %>%
+      mutate(percent_human_reads = case_when(kraken_human == 'TBD' ~ NA_real_, TRUE ~ as.numeric(kraken_human)))
+
+
+#creating a summary table
+
+batchsummary <- runresults2 %>% filter(!is.na(batchid)) %>% group_by(batchid) %>% summarise(n = n(), MinDate = min(collection_date, na.rm = TRUE), MaxDate = max(collection_date, na.rm = TRUE), pass_number = sum(Assembly_Count, na.rm = TRUE), fail_number = sum(Assembly_Count_Fail, na.rm = TRUE))
+
+#Getting the median and IQR for the pass rate for later analysis
+summary(batchsummary$Pass_Rate)
+
+batchsummary <- batchsummary %>% mutate(Pass_Rate = pass_number/n*100, na.rm=TRUE) %>% mutate(Pass_Group = case_when(Pass_Rate <= quantile(Pass_Rate, 0.25) ~ "Q1", quantile(Pass_Rate, 0.25) < Pass_Rate & Pass_Rate <= median(Pass_Rate) ~ "Q2",median(Pass_Rate) < Pass_Rate & Pass_Rate <= quantile(Pass_Rate, 0.75) ~ "Q3",quantile(Pass_Rate, 0.75) < Pass_Rate ~ "Q4"))
+
+a <- batchsummary %>% select(batchid, Pass_Group)
+
+runresults_join <- left_join(runresults2, a, by = "batchid") %>% mutate(human_reads = (percent_human_reads * fastqc_raw1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * fastqc_raw1)/100)
+
+
+rr_clean <- runresults_join %>% select(batchid, analysis_date, entity.sample_id, collection_date, assembly_status, Assembly_Count, Assembly_Count_Fail, raw_reads1, raw_reads2, fastqc_clean_pairs, assembly_length_unambiguous, number_N, meanbaseq_trim, meanmapq_trim, percent_human_reads, percent_SC2_reads) %>%  mutate(human_reads = (percent_human_reads * raw_reads1)/100) %>% mutate(SC2_reads = (percent_SC2_reads * raw_reads1)/100)
+
+
+clean_batchsummary <- rr_clean %>% group_by(batchid) %>% summarise(n = n(), Seqdate = max(analysis_date),
+                                                                MinDate = min(collection_date, na.rm = TRUE),
+                                                                MaxDate = max(collection_date, na.rm = TRUE),
+                                                                pass_number = sum(Assembly_Count),
+                                                                fail_number = sum(Assembly_Count_Fail),
+                                                                Median_rawread = median(raw_reads1, na.rm = TRUE),
+                                                                rawreadQ25 = quantile(raw_reads1, probs = 0.25, na.rm = TRUE),
+                                                                rawreadQ75 = quantile(raw_reads1, probs = 0.75, na.rm = TRUE),
+
+                                                                 Median_cleanread = median(fastqc_clean_pairs, na.rm = TRUE), 
+                                                                cleaningQ25 = quantile(fastqc_clean_pairs, probs = 0.25, na.rm = TRUE),
+                                                                cleaningQ75 = quantile(fastqc_clean_pairs, probs = 0.75, na.rm = TRUE),
+
+                                                                Median_ACTG = median(assembly_length_unambiguous, na.rm = TRUE),
+                                                                ACTG_Q25 = quantile(assembly_length_unambiguous, probs = .25, na.rm = TRUE),
+                                                                  ACTG_Q75 = quantile(assembly_length_unambiguous, probs = .75, na.rm = TRUE),
+
+                                                                Median_N = median(number_N, na.rm = TRUE),
+                                                                N_Q25 = quantile(number_N, probs = 0.25, na.rm = TRUE),
+                                                                 N_Q75 = quantile(number_N, probs = 0.75, na.rm = TRUE),
+
+                                                                Median_humanreads = median(human_reads, na.rm = TRUE),
+                                                                humanreasd_Q25 = quantile(human_reads, probs = .25, na.rm = TRUE),
+                                                                humanreasd_Q75 = quantile(human_reads, probs = .75, na.rm = TRUE),
+
+                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),
+                                                                SC2reads_Q25 = quantile(SC2_reads, probs = 0.25, na.rm = TRUE),
+                                                                SC2reads_Q75 = quantile(SC2_reads, probs = 0.75, na.rm = TRUE))
+
+clean_batchsummary_table <- clean_batchsummary %>% mutate(SampleRange = paste(MinDate, MaxDate, sep = " - ")) %>% mutate(Per_Passing = round((pass_number/n*100), digits = 2))
+
+clean_batchsummary_table <- as.data.frame(clean_batchsummary_table)
+clean_batchsummary_table <- setorder(setDT(clean_batchsummary_table), cols = Seqdate)[]
+clean_batchsummary_table <- rownames_to_column(clean_batchsummary_table, "Batch")
+clean_batchsummary_table$Batch <- as.integer(clean_batchsummary_table$Batch)
+
+#total
+clean_batchsummary_total <- rr_clean %>% summarise(n = n(), Seqdate = max(analysis_date),
+                                                                MinDate = min(collection_date, na.rm = TRUE),
+                                                                MaxDate = max(collection_date, na.rm = TRUE),
+                                                                pass_number = sum(Assembly_Count),
+                                                                Median_rawread = median(raw_reads1, na.rm = TRUE),
+                                                                rawreadQ25 = quantile(raw_reads1, probs = 0.25, na.rm = TRUE),
+                                                                rawreadQ75 = quantile(raw_reads1, probs = 0.75, na.rm = TRUE),
+
+                                                                
+                                                                Median_ACTG = median(assembly_length_unambiguous, na.rm = TRUE),
+                                                                ACTG_Q25 = quantile(assembly_length_unambiguous, probs = .25, na.rm = TRUE),
+                                                                  ACTG_Q75 = quantile(assembly_length_unambiguous, probs = .75, na.rm = TRUE),
+
+                                                                Median_N = median(number_N, na.rm = TRUE),
+                                                                N_Q25 = quantile(number_N, probs = 0.25, na.rm = TRUE),
+                                                                 N_Q75 = quantile(number_N, probs = 0.75, na.rm = TRUE),
+
+                                                                Median_humanreads = median(human_reads, na.rm = TRUE),
+                                                                humanreasd_Q25 = quantile(human_reads, probs = .25, na.rm = TRUE),
+                                                                humanreasd_Q75 = quantile(human_reads, probs = .75, na.rm = TRUE),
+
+                                                                Median_SC2reads = median(SC2_reads, na.rm = TRUE),
+                                                                SC2reads_Q25 = quantile(SC2_reads, probs = 0.25, na.rm = TRUE),
+                                                                SC2reads_Q75 = quantile(SC2_reads, probs = 0.75, na.rm = TRUE))
+clean_batchsummary_total <- clean_batchsummary_total %>% mutate(SampleRange = paste(MinDate, MaxDate, sep = " - ")) %>% mutate(Per_Passing = pass_number/n*100)
+clean_batchsummary_total <- as.data.frame(clean_batchsummary_total)
+clean_batchsummary_total <- setorder(setDT(clean_batchsummary_total), cols = Seqdate)[]
+clean_batchsummary_total <- rownames_to_column(clean_batchsummary_total, "Batch")
+clean_batchsummary_total$Batch <- 0
+
+
+clean_batchsum_all <- rbind(clean_batchsummary_table, clean_batchsummary_total, fill=TRUE)
+
+lastset <- rr_clean %>% filter(!is.na(batchid)) %>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
+
+Assemblies <- rr_clean %>% filter(!is.na(batchid)) %>% group_by(analysis_date, batchid,assembly_status) %>% summarise(n = n())
+Assemblies <- rownames_to_column(Assemblies, "Row")
+x <- rr_clean %>% group_by(batchid) %>% summarise(n_batch =n())
+Assemblies <- left_join(Assemblies, x, by = "batchid")
+Assemblies$Percent <- round((Assemblies$n/Assemblies$n_batch)*100, digits = 2)
+
+```
+
+```{r, include=FALSE}
+
+NTC1 <- runresults %>% filter(runresults$entity.sample_id %like% 'NTC1') #%>% filter(batchid %in% tail(clean_batchsummary_table$batchid,n=8))
+NTC2 <- runresults %>% filter(runresults$entity.sample_id %like% 'NTC2') 
+NEG2 <- runresults %>% filter(runresults$entity.sample_id %like% 'NEG2')
+
+
+
+median(runresults$assembly_length_unambiguous[runresults$entity.sample_id %like% 'NTC1'])
+quantile(runresults$assembly_length_unambiguous[runresults$entity.sample_id %like% 'NTC1'], 0.25)
+quantile(runresults$assembly_length_unambiguous[runresults$entity.sample_id %like% 'NTC1'], 0.75)
+
+ggplot(NTC1, aes(y = assembly_length_unambiguous, x = batchid)) + geom_point() +
+  geom_hline(aes(yintercept = median(NTC1$assembly_length_unambiguous)), color = 'blue') + 
+  geom_hline(aes(yintercept = quantile(NTC1$assembly_length_unambiguous,0.25)), color = 'red') +
+  geom_hline(aes(yintercept = quantile(NTC1$assembly_length_unambiguous,0.75)), color = 'red') +
+  geom_hline(aes(yintercept = quantile(NTC1$assembly_length_unambiguous,0.95)), color = 'red') +
+  geom_hline(aes(yintercept = quantile(NTC1$assembly_length_unambiguous,0.05)), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title="Median Number of ATCG for Control NTC1 over time",
+        x ="Batch", y = "Number of ATCG")
+
+ggplot(NTC1, aes(y = assembly_length_unambiguous, x = batchid)) + geom_point() +
+  geom_hline(aes(yintercept = mean(NTC1$assembly_length_unambiguous)), color = 'blue') + 
+  geom_hline(aes(yintercept = mean(NTC1$assembly_length_unambiguous) + sd(NTC1$assembly_length_unambiguous)), color = 'red') +
+  geom_hline(aes(yintercept = mean(NTC1$assembly_length_unambiguous) - sd(NTC1$assembly_length_unambiguous)), color = 'red') +
+  geom_hline(aes(yintercept = mean(NTC1$assembly_length_unambiguous) + 2*(sd(NTC1$assembly_length_unambiguous))), color = 'red') +
+  geom_hline(aes(yintercept = mean(NTC1$assembly_length_unambiguous) - 2*(sd(NTC1$assembly_length_unambiguous))), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title="Mean Number of ATCG for Control NTC1 over time",
+        x ="Batch", y = "Number of ATCG")
+
+NTC1p <- ggplot(NTC1, aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
+  geom_line() +
+  geom_point() +
+  geom_hline(aes(yintercept = 87), color = 'blue') + 
+  geom_hline(aes(yintercept = 170.73), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 3.2), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 254.47), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 338.2), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5)) +
+  labs(title="Mean Number of ATCG for Control NTC1",
+        x ="Batch", y = "Number of ATCG") +
+      annotate(geom = "label",
+             label = c("-1sd = 3.2", "Avg = 87", "+1sd = 170.73","+2sd = 254.47", "UCL = 338.2"),
+             fill = "white",
+             x = c(1,1,1,1,1),
+             y = c(3.26,87,170.73,254.47,338.2), 
+             hjust = -0.01)
+
+
+ NTC2p <- ggplot(NTC2, aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
+  geom_line() +
+  geom_point() +
+  geom_hline(aes(yintercept = 52.77), color = 'blue') + 
+  geom_hline(aes(yintercept = 145.60), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 238.42), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 331.24), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5)) +
+  labs(title="Mean Number of ATCG for Control NTC2",
+        x ="Batch", y = "Number of ATCG") +
+      annotate(geom = "label",
+             label = c("Avg = 87", "+1sd = 145.60","+2sd = 238.42", "UCL = 331.24"),
+             fill = "white",
+             x = c(1,1,1,1),
+             y = c(52.77,145.60,238.42,331.24), 
+             hjust = -0.01)
+
+NEG2p <- ggplot(NEG2, aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
+  geom_line() +
+  geom_point() +
+  geom_hline(aes(yintercept = 92), color = 'blue') + 
+  geom_hline(aes(yintercept = 201.81), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 311.23), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 420.64), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust = 0.5)) +
+  labs(title="Mean Number of ATCG for Control NEG2",
+        x ="Batch", y = "Number of ATCG") +
+        annotate(geom = "label",
+             label = c("Avg = 92", "+1sd = 201.81","+2sd = 311.23", "UCL = 420.64"),
+             fill = "white",
+             x = c(1,1,1,1),
+             y = c(92,201.81,311.23,420.64), 
+             hjust = -0.01)
+
+
+```
+
+
+# Current Run Statistics
+```{r, include=FALSE}
+
+Current_Run <- runresults %>% filter(analysis_date==max(analysis_date, na.rm = TRUE)) %>%
+  mutate(Limit = case_when(entity.sample_id %like% "NEG" ~ "600",
+                           entity.sample_id %like% "NTC" ~ "600",
+                           TRUE ~ ""))
+                           
+Current_Run$Limit <- as.integer(Current_Run$Limit)
+Current_Run$Control_Status <- if_else(Current_Run$Limit <= Current_Run$assembly_length_unambiguous, "Fail","Pass")
+Current_Run$collection_date <- as.Date(Current_Run$collection_date, "%Y-%m-%d")
+Current_Run$analysis_date <- as.Date(Current_Run$analysis_date, "%Y-%m-%d")
+
+
+```
+
+\floatsetup[figure]{style=plaintop}
+\newfloatcommand{btabbox}{table}
+
+\begin{figure}\CenterFloatBoxes
+  \begin{floatrow}
+  \captionsetup{font={Large}}
+    \ffigbox{%
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.show="hold", out.width="100%"}
+
+g <- ggplot(data = Current_Run, aes(x=collection_date)) + geom_histogram(aes(x = collection_date), binwidth=1) +
+              scale_x_date(labels = date_format("%b %d, %y"), limits = c(min(Current_Run$collection_date), Current_Run$analysis_date), date_breaks = "1 week")  +
+                    ylab("Number of Isolates") + xlab("Collection Date of Isolate") +
+                          geom_vline(aes(xintercept = analysis_date), linetype = "dashed") +
+                               geom_text(aes(x=analysis_date, y = 0,label="Sequencing Date", family = "serif"), size = 6, angle = 90, vjust = -0.4,hjust = -0.75) +
+                                            theme_classic()  +
+                                                  theme(text = element_text(family="serif"),plot.title = element_text(hjust=0.5) ,axis.title.x = element_text(size = 24), axis.title.y = element_text(size=24), axis.text=element_text(size=16), axis.text.x = element_text(angle = 45, hjust=1))
+
+g
+
+#g + geom_vline(aes(xintercept = analysis_date), linetype = "dashed") +
+#                                      geom_text(aes(x=analysis_date, y = 0,label="Sequencing Date", family = "serif"), size = 4.5, angle = 90, vjust = -0.4,hjust = -0.75)
+
+```
+    }{\caption*{Isolate Collection Dates}}
+    \ttabbox{%
+```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.align='right'}
+
+library(formattable)
+library(dplyr)
+
+Current_Run_Controls <- runresults %>% filter(entity.sample_id %like% c('NTC') | entity.sample_id%like% c("NEG")) %>% filter(analysis_date==max(analysis_date)) %>% mutate(Limit = case_when(entity.sample_id %like% "HSC" ~ "100",
+                           entity.sample_id %like% "NEG" ~ "600",
+                           entity.sample_id %like% "NTC" ~ "600",
+                           TRUE ~ "")) 
+Current_Run_Controls$Limit <- as.integer(Current_Run_Controls$Limit) 
+Current_Run_Controls$Control_Status <- if_else(Current_Run_Controls$Limit <= Current_Run_Controls$assembly_length_unambiguous, "Fail","Pass")
+Current_Run_Controls <- Current_Run_Controls%>% select(entity.sample_id, assembly_length_unambiguous, Limit, Control_Status) 
+
+knitr::kable(Current_Run_Controls, "latex", col.names = c("Control ID", "ACTG Detected", "Limit", "Interpretation"), align = "c")
+
+# ###
+# all_Run_Controls <- runresults %>% filter(grepl('NTC',entity.sample_id) | grepl('NEG',entity.sample_id)) %>% mutate(Limit = case_when(grepl("NEG",entity.sample_id) ~ "600",
+#                            grepl("NTC",entity.sample_id) ~ "600",
+#                            TRUE ~ "")) 
+# # all_Run_Controls$Limit <- as.integer(all_Run_Controls$Limit) 
+# # all_Run_Controls$Control_Status <- if_else(all_Run_Controls$Limit <= all_Run_Controls$assembly_length_unambiguous, "Fail","Pass")
+# # all_Run_Controls <- all_Run_Controls%>% select(entity.sample_id, assembly_length_unambiguous, Limit, Control_Status) 
+# 
+# #TABLE FOR CURRENT RUN ONLY
+# options(knitr.table.format = "latex")
+# knitr::kable(Current_Run_Controls, col.names = c("Control ID", "ACTG Detected", "Limit", "Interpretation"), align = "c")
+
+```
+    }{\caption*{Contamination Stats}}
+  \end{floatrow}
+\end{figure}
+
+# Current and Historic Trends
+```{r, echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
+
+cols <- c("gray78","blue")
+names(cols) <- c("FAIL", "PASS")
+
+#Creates a list of Unique batch IDs to controls for batches that have no "Pass" or no "Fail" sequences
+Assemblies_Set <- Assemblies$batchid %>% unique() %>% tail(8)
+
+assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Set),], aes(x=Percent, y=batchid, fill=assembly_status, color=batchid)) +
+  geom_bar(position="stack", stat="identity", size = 2) +
+  scale_fill_manual(values=c(cols)) +
+  scale_color_manual(values=c(rep("white", times=7),"black")) +
+  ggtitle("Assemblies Status of Sequences") +
+  labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Values in bars represent number of\nsequences in category") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, size=14), axis.text.y=element_text(color=c(rep("black",times=10),"blue"),face="bold"), plot.caption = element_text(hjust = 0, size = 12),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3, size=12),axis.title.x = element_text(size = 12), legend.position="bottom", plot.margin = unit(c(0,0.3,0,0.3), "cm")) +
+  guides(fill=guide_legend(title="Assembly Status"), color = FALSE) +
+  geom_text(aes(label=n),color="white", position = "stack", hjust= 1.4, face="bold")
+
+#plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batchid, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
+    #layout(yaxis = list(title = 'Count'), barmode = 'stack')
+
+
+NTC1p <- ggplot(NTC1[], aes(y = assembly_length_unambiguous, x = batchid, group = 1)) + 
+  geom_line() +
+  geom_point() +
+  geom_hline(aes(yintercept = 87), color = 'blue') + 
+  geom_hline(aes(yintercept = 170.73), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 3.2), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 254.47), color = 'red', linetype = "dashed") +
+  geom_hline(aes(yintercept = 338.2), color = 'red') +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12), plot.title = element_text(hjust = 0.5), plot.margin = unit(c(0.1,0.1,0.4,0.6),"cm"), text = element_text(family="serif")) +
+  labs(title="Mean Number ATCG at NTC1",
+        x ="Batch", y = "Number of ATCG") +
+      annotate(geom = "label",
+             label = c("-1sd = 3.2", "Avg = 87", "+1sd = 170.73","+2sd = 254.47", "UCL = 338.2"),
+             fill = "white",
+             x = c(1,1,1,1,1),
+             y = c(3.26,87,170.73,254.47,338.2), 
+             hjust = -0.01)
+
+
+plot_grid(assemblies_plot, NTC1p, nrow = 1, ncol = 2, rel_widths = c(1,1))
+```
+\newpage
+
+```{r,echo=FALSE, include=FALSE, message=FALSE, error=FALSE}
+
+rawplot <- ggplot(lastset, aes(x=batchid, y=raw_reads1)) +
+  geom_boxplot(aes(color=batchid)) +
+  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+  labs(title = "Median Number of Raw Reads", x = "Batch ID", y = "Number of Reads") +
+  theme_classic() +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold", angle=45, hjust = 1), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10), text = element_text(family="serif"))
+
+clean_plot <- ggplot(lastset, aes(x=batchid, y=fastqc_clean_pairs)) +
+  geom_boxplot(aes(color=batchid)) +
+  scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+  labs(title = "Median Number of Cleaned Read Pairs", x = "Batch ID", y = "Number of Read Pairs") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold",angle=45, hjust = 1), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10), text = element_text(family="serif"))
+
+```
+
+```{r, echo=FALSE, include=FALSE, message=FALSE, error=FALSE}
+# 
+# library(tibble)
+# 
+# 
+# is_outlier <- function(x) {
+#   return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
+# }
+# 
+# dat <- lastset %>% tibble::rownames_to_column(var="outlier") %>% group_by(batchid) %>% mutate(is_outlier=ifelse(is_outlier(human_reads), human_reads, as.numeric(NA)))
+# 
+# dat$entity.sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
+# 
+# ggplot(dat, aes(y=human_reads, x=factor(batchid))) + geom_boxplot() + geom_text(aes(label=entity.sample_id),na.rm=TRUE,nudge_y=0.05)
+# 
+# 
+# human_plot <- ggplot(dat, aes(x=batchid, y=human_reads)) +
+#   geom_boxplot(aes(color=batchid)) +
+#    #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
+#   scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue")) +
+#   labs(title = "Median Number of Human Reads", x = "Batch ID", y = "Number of Reads") +
+#   scale_y_continuous(labels = scales::comma, limits = c(0,1000000)) +
+#   theme_classic() +
+#   theme(legend.position = "none", text = element_text(family="serif"), plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold",angle = 45, hjust = 1), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10))
+# 
+# dat2 <- lastset %>% tibble::rownames_to_column(var="outlier") %>% group_by(batchid) %>% mutate(is_outlier=ifelse(is_outlier(SC2_reads), SC2_reads, as.numeric(NA)))
+# dat$entity.sample_id[which(is.na(dat$is_outlier))] <- as.numeric(NA)
+# 
+# SCOV_plot <- ggplot(dat2, aes(x=batchid, y=SC2_reads)) +
+#   geom_boxplot(aes(color=batchid)) +
+#   #geom_text(aes(label=sample_id),na.rm=TRUE,nudge_y=0.05) +
+#   scale_color_manual(values=c("black", "black", "black", "black", "black","black","black", "blue"))+
+#   labs(title = "Median Number of SARS-COV-2 Reads", x = "Batch ID", y = "Number of Reads") +
+#   scale_y_continuous(labels = scales::comma) +
+#   theme_classic() +
+#   theme(legend.position = "none", text = element_text(family="serif"),plot.title = element_text(hjust = 0.5, size = 12), axis.text.x = element_text(size = 10, face = "bold", angle=45, hjust = 1), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10))
+
+```
+
+```{r echo=FALSE, warning=FALSE, error=FALSE, fig.show="hold", fig.align='left', fig.width=8, fig.height=7}
+
+#par(mar = c(4, 4, .1, .1))
+#rawplot
+#clean_plot
+
+#plot_grid(rawplot, clean_plot, human_plot, SCOV_plot, ncol = 2, nrow = 2, scale = 0.9)
+
+```
+
+```{r echo=FALSE, warning=FALSE, error=FALSE, fig.show="hold", fig.align='left', fig.width=8, fig.height=7}
+
+#par(mar = c(4, 4, .1, .1))
+#rawplot
+#clean_plot
+
+#plot_grid(rawplot, clean_plot, human_plot, SCOV_plot, ncol = 2, nrow = 2, scale = 0.9)
+
+```
+
+# Amplicon Statitics
+```{r echo=FALSE, include=FALSE}
+#metadata <- read.table("amplicon_coverage_07-21_metadata.tsv", sep = "\t",header = TRUE)  
+#amplicons <- read.table("amplicon_coverage_2022-07-21.txt", header = TRUE)
+
+#Reading in multiple 4.1 batches
+
+#metadata_4.1primers <- read.table("primer4.1_batches_samples.tsv", sep = "\t", header = TRUE)
+
+b24895 <- read.table("amplicon_coverage_2022-07-21_24895.txt",header = TRUE)
+b24947 <- read.table("amplicon_coverage_2022-08-01_24947.txt",header = TRUE)
+b24774 <- read.table("amplicon_coverage_2022-07-19_24774.txt",header = TRUE)
+b24602 <- read.table("amplicon_coverage_2022-07-19_24602.txt",header = TRUE)
+b24600 <- read.table("amplicon_coverage_2022-07-19-245600.txt",header = TRUE)
+b24599 <- read.table("amplicon_coverage_2022-07-19_24599.txt",header = TRUE)
+b24770 <- read.table("amplicon_coverage_2022-07-19_24770.txt",header = TRUE)
+
+ll_24895 <- b24895 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:94) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24947 <- b24947 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:92) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24774 <- b24774 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:93) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24602 <- b24602 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:94) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24600 <- b24600 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:94) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24599 <- b24599 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:94) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+ll_24770 <- b24770 %>% 
+  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
+  select(-primer) %>% 
+  gather("sequence","reads",2:94) %>%
+  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
+
+ll_4.1_batches <- rbind(ll_24599,ll_24600, ll_24602 , ll_24770 , ll_24774 , ll_24895, ll_24947)
+
+#filtering out metadata for a smaller dataset
+metadata_4.1_cut <- runresults %>% select(entity.sample_id, tool_lineage, pango_lineage, s_gene_mean_coverage, s_gene_percent_coverage, collection_date, assembly_status, batchid, analysis_date)
+metadata_4.1_cut$collection_date <- as.Date(metadata_4.1_cut$collection_date)
+
+
+#Create a merged dataset for analysis
+combo_4.1 <- left_join(metadata_4.1_cut, ll_4.1_batches, by = c("entity.sample_id" = "sequence"))
+combo_4.1$collection_date <- as.Date(combo_4.1$collection_date)
+
+#New Grouping Factor: 
+combo_4.1 <- combo_4.1 %>% mutate(collection_month = case_when(collection_date >= "2021-12-01" & collection_date <= "2021-12-31" ~ "Dec 2021", 
+                          collection_date >= "2022-01-01" & collection_date <= "2022-01-31" ~ "Jan 2022", collection_date >= "2022-02-01" & collection_date <= "2022-02-28" ~ "Feb 2022",
+                          collection_date >= "2022-03-01" & collection_date <= "2022-03-31" ~ "Mar 2022",
+                          collection_date >= "2022-04-01" & collection_date <= "2022-04-30" ~ "Apr 2022", collection_date >= "2022-05-01" & collection_date <= "2022-05-31" ~ "May 2022",
+                          collection_date >= "2022-06-01" & collection_date <= "2022-06-30" ~ "June 2022"))
+
+#adding level orders for plots
+combo_4.1$collection_month <- factor(combo_4.1$collection_month, levels = c("Dec 2021", "Jan 2022", "Feb 2022", "Mar 2022", "Apr 2022", "May 2022", "June 2022"))
+
+### BASIC STATS ####
+
+
+#Filters out all of the controls and the failed assemblies for the lineage analysis
+
+metadata_4.1_cut <- metadata_4.1_cut %>% filter(!(grepl("FAIL", metadata_4.1_cut$assembly_status) | grepl("NTC|NEG",metadata_4.1_cut$entity.sample_id)))
+
+```
+
+```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
+ggplot(metadata_4.1_cut, aes(x=tool_lineage)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), panel.background = element_blank()) + 
+  labs(x = "SARS-CoV-2 Lineages", y = "Count", title = "Count of Lineage among Passing SC2 Assemblies from Arctic v.4.1 Batches")
+```
+
+```{r, include=FALSE}
+
+metadata_4.1_cut %>%
+  group_by(collection_date, tool_lineage) %>%
+  summarise(count = n()) %>%
+  filter(!(tool_lineage %in% c("INVALID"))) %>%
+  ggplot(aes(x = collection_date, y = count, group = tool_lineage, color = tool_lineage)) + 
+  geom_point() +
+  scale_x_date(breaks = function(x) seq.Date(from = min(x), 
+                                                 to = max(x), 
+                                                 by = "30 days")) +
+  #scale_y_continuous(breaks = seq(from = 0, to = max(count), by = 5)) +
+  labs(x = "Collection Date", y = "Number of samples", title = "Arctic v4.1 SARS-CoV-2 Sequences",
+       fill = "Tool lineage") +
+  theme(axis.text.x = element_text(angle = 45), 
+        panel.background = element_blank())
+
+
+## Examining Lineage Markers: 
+fails <- runresults %>% filter(assembly_status %in% "FAIL") %>%
+  filter(!grepl("NEG|NTC",entity.sample_id))
+  table(fails$pango_lineage, fails$tool_lineage)
+
+
+```
+
+```{r, include=FALSE}
+
+#need to edit this for WDL 
+primers1 <- read.csv("SARS-COV-2_arcticprimers_genes.csv")
+primers2 <- primers1 %>% select(primer, gene)
+
+#create a dataset with the gene assignment
+combo_4.1 <- left_join(combo_4.1, primers2, by = c("primer_num" = "primer")) 
+combo_4.1 <- combo_4.1 %>% distinct()
+
+#Can Adjust depending on which batches are being included in the overall dataset
+Amplicons_Set <- combo_4.1$batchid %>% unique() %>% tail(3)
+
+plot_batches <- 
+  ggplot() +
+  scale_color_brewer(palette = "Accent") +
+  geom_line(data = combo_4.1[which(combo_4.1$batchid %in% Amplicons_Set),] %>% 
+  filter(assembly_status %in% "PASS") %>%
+  group_by(batchid, primer_num) %>%
+  summarise(mean_reads = mean(reads)), mapping = aes(x = primer_num, y = mean_reads, color = batchid)) +
+  geom_vline(xintercept = 73) +
+  geom_vline(xintercept = 86) +
+  geom_vline(xintercept = 88) +
+  geom_vline(xintercept = 89) +
+  geom_vline(xintercept = 92) +
+  geom_vline(xintercept = 94) +
+  geom_vline(xintercept = 96) +
+  labs(x = "Primer Number", y = "Mean number of reads per batch", title = "Arctic v4.1 SARS-CoV-2 Sequences", color = "Batch ID", caption = "Dashed line represents the average of displayed batches") +
+  theme(axis.text.x = element_text(angle = 45), 
+        panel.background = element_blank()) + 
+  geom_rect(aes(xmin = 1, xmax = 72, ymin = -10, ymax = -7), 
+                fill = "blue", size = 2, colour = "darkblue") +
+  geom_rect(aes(xmin = 73, xmax = 85, ymin = -10, ymax = -7), 
+                fill = "red", size = 2, colour = "red") +
+  geom_rect(aes(xmin =86, xmax = 87, ymin = -10, ymax = -7), 
+                fill = "green", size = 2, colour = "green") +
+  geom_rect(aes(xmin = 88, xmax = 88, ymin = -10, ymax = -7), 
+                fill = "orchid", size = 2, colour = "orchid") +
+  geom_rect(aes(xmin = 89, xmax = 91, ymin = -10, ymax = -7), 
+                fill = "blue", size = 2, colour = "darkblue") +
+  geom_rect(aes(xmin = 92, xmax = 93, ymin = -10, ymax = -7), 
+                fill = "brown", size = 2, colour = "brown") +
+  geom_rect(aes(xmin = 94, xmax = 95, ymin = -10, ymax = -7), 
+                fill = "red", size = 2, colour = "red") +
+  geom_rect(aes(xmin = 96, xmax = 99, ymin = -10, ymax = -7), 
+                fill = "yellow", size = 2, colour = "yellow") +
+  annotate("text", x = 40, y = -400, size = 3, label = "ORFab") +
+  annotate("text", x = 79, y = -400, size = 3, label = "Spike") +
+  annotate("text", x = 86, y = -400, size = 3, label = "3a") +
+  annotate("text", x = 88, y = -400, size = 3, label = "E") +
+  annotate("text", x = 90, y = -400, size = 3, label = "M") +
+  annotate("text", x = 92, y = -400, size = 3, label = "7a") +
+  annotate("text", x = 94, y = -400, size = 3, label = "8") +
+  annotate("text", x = 98, y = -400, size = 3, label = "N") +
+    geom_line(data = combo_4.1[which(combo_4.1$batchid %in% Amplicons_Set),] %>% 
+  filter(assembly_status %in% "PASS") %>%
+  group_by(primer_num) %>%
+  summarise(mean_reads = mean(reads)), 
+  mapping = aes(x = primer_num, y = mean_reads), linetype = "dashed")   
+```
+
+```{r, echo=FALSE, fig.show='hold', fig.align='center'}
+plot_batches
+
+```
