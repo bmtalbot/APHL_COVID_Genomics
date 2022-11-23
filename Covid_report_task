@@ -12,6 +12,7 @@ workflow seq_run_report {
     String    id_column
     String    batch_id="BATCH_ID"
     File      amp_coverage  ## ADDED TO BRING IN THE BATCH AMPLICON COVERAGE
+    File      primers  ## hypothetical workspace file with the primers annotated with gene sites from gff
     File?     render_template
   }
 
@@ -135,6 +136,9 @@ task seqreport_render {
    
    ### COPIES THE AMPLICON COVERAGE FILE THAT IS SUPPLIED BY THE WORKFLOW
     cp ~{amp_coverage} amp_coverage.txt
+    
+   ### HYPOTHETICAL PRIMER FILE FROM THE WORKSPACE
+    cp ~{primers} annotated_primers.csv
        
     if [[ -f "~{render_template}" ]]; then cp ~{render_template} render_template.Rmd
     else wget -O render_template.Rmd https://raw.githubusercontent.com/bmtalbot/APHL_COVID_Genomics/main/Sars-Cov-2-Seq_Report.Rmd; fi
