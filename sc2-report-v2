@@ -21,14 +21,12 @@ library(tidyverse)
 library(lubridate)
 
 #Importing Data Table
-setwd("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist")
 
-amplicons <- read.table("amplicon_coverage_2022-07-21.txt", header = TRUE)
+amplicons <- read.table("amp_coverage.txt", sep = "\t", header = TRUE)
 
-runresults <- read.table("primer4.1_batches_samples.tsv", sep = "\t", header = TRUE, na.strings = c(""," ", NA), stringsAsFactors = FALSE)
+primer_positions <- read.table("amp_coverage.txt", sep = ",", header = TRUE)
 
-#Update this with the metadata table 
-#runresults <- read.csv("sample_table_2022-03-16.csv",  na.strings = c(""," ", NA))
+runresults <- read.table("annotated_primers.csv", sep = ",", header = TRUE, na.strings = c(""," ", NA), stringsAsFactors = FALSE)
 
 runresults$batchid <- str_remove(runresults$batchid, "batch_")
 
@@ -91,11 +89,6 @@ library(cowplot)
 library(scales)
 
 runresults <- runresults %>% mutate(raw_reads1 = fastqc_raw1) %>% mutate(raw_reads2 = fastqc_raw2)
-
-#Flagging for any results that are out of the date range
-daterange <- function(t) {
-  ifelse(t < 2020-01-01, 1, 0)}
-
 
 #code excludes the sequences that were not run (collection date = blank)
 runresults2 <- runresults %>% filter(!(is.na(collection_date)))  %>%
@@ -499,70 +492,23 @@ clean_plot <- ggplot(lastset, aes(x=batchid, y=fastqc_clean_pairs)) +
 
 # Amplicon Statitics
 ```{r echo=FALSE, include=FALSE}
-#metadata <- read.table("amplicon_coverage_07-21_metadata.tsv", sep = "\t",header = TRUE)  
-#amplicons <- read.table("amplicon_coverage_2022-07-21.txt", header = TRUE)
 
-#Reading in multiple 4.1 batches
-
-#metadata_4.1primers <- read.table("primer4.1_batches_samples.tsv", sep = "\t", header = TRUE)
-
-b24895 <- read.table("amplicon_coverage_2022-07-21_24895.txt",header = TRUE)
-b24947 <- read.table("amplicon_coverage_2022-08-01_24947.txt",header = TRUE)
-b24774 <- read.table("amplicon_coverage_2022-07-19_24774.txt",header = TRUE)
-b24602 <- read.table("amplicon_coverage_2022-07-19_24602.txt",header = TRUE)
-b24600 <- read.table("amplicon_coverage_2022-07-19-245600.txt",header = TRUE)
-b24599 <- read.table("amplicon_coverage_2022-07-19_24599.txt",header = TRUE)
-b24770 <- read.table("amplicon_coverage_2022-07-19_24770.txt",header = TRUE)
-
-ll_24895 <- b24895 %>% 
+#creating a line list of the primers with sequencing information
+ll_amplicons <- amplicons %>% 
   mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
   select(-primer) %>% 
   gather("sequence","reads",2:94) %>%
   mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24947 <- b24947 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:92) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24774 <- b24774 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:93) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24602 <- b24602 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:94) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24600 <- b24600 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:94) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24599 <- b24599 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:94) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-ll_24770 <- b24770 %>% 
-  mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
-  select(-primer) %>% 
-  gather("sequence","reads",2:94) %>%
-  mutate(sequence = sub("X", "", sequence, fixed = TRUE))
-
-ll_4.1_batches <- rbind(ll_24599,ll_24600, ll_24602 , ll_24770 , ll_24774 , ll_24895, ll_24947)
 
 #filtering out metadata for a smaller dataset
-metadata_4.1_cut <- runresults %>% select(entity.sample_id, tool_lineage, pango_lineage, s_gene_mean_coverage, s_gene_percent_coverage, collection_date, assembly_status, batchid, analysis_date)
-metadata_4.1_cut$collection_date <- as.Date(metadata_4.1_cut$collection_date)
-
+metadata2 <- runresults %>% select(entity.sample_id, tool_lineage, s_gene_mean_coverage, s_gene_percent_coverage, collection_date, assembly_status, batchid, analysis_date)
+metadata2$collection_date <- as.Date(metadata2$collection_date)
 
 #Create a merged dataset for analysis
-combo_4.1 <- left_join(metadata_4.1_cut, ll_4.1_batches, by = c("entity.sample_id" = "sequence"))
-combo_4.1$collection_date <- as.Date(combo_4.1$collection_date)
+combo <- left_join(metadata2, ll_amplicons, by = c("entity.sample_id" = "sequence"))
 
 #New Grouping Factor: 
-combo_4.1 <- combo_4.1 %>% mutate(collection_month = case_when(collection_date >= "2021-12-01" & collection_date <= "2021-12-31" ~ "Dec 2021", 
+combo_4.1 <- combo %>% mutate(collection_month = case_when(collection_date >= "2021-12-01" & collection_date <= "2021-12-31" ~ "Dec 2021", 
                           collection_date >= "2022-01-01" & collection_date <= "2022-01-31" ~ "Jan 2022", collection_date >= "2022-02-01" & collection_date <= "2022-02-28" ~ "Feb 2022",
                           collection_date >= "2022-03-01" & collection_date <= "2022-03-31" ~ "Mar 2022",
                           collection_date >= "2022-04-01" & collection_date <= "2022-04-30" ~ "Apr 2022", collection_date >= "2022-05-01" & collection_date <= "2022-05-31" ~ "May 2022",
@@ -576,19 +522,19 @@ combo_4.1$collection_month <- factor(combo_4.1$collection_month, levels = c("Dec
 
 #Filters out all of the controls and the failed assemblies for the lineage analysis
 
-metadata_4.1_cut <- metadata_4.1_cut %>% filter(!(grepl("FAIL", metadata_4.1_cut$assembly_status) | grepl("NTC|NEG",metadata_4.1_cut$entity.sample_id)))
+metadata2 <- metadata2 %>% filter(!(grepl("FAIL", metadata2$assembly_status) | grepl("NTC|NEG",metadata2$entity.sample_id)))
 
 ```
 
 ```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
-ggplot(metadata_4.1_cut, aes(x=tool_lineage)) + geom_bar() +
+ggplot(metadata2, aes(x=tool_lineage)) + geom_bar() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), panel.background = element_blank()) + 
   labs(x = "SARS-CoV-2 Lineages", y = "Count", title = "Count of Lineage among Passing SC2 Assemblies from Arctic v.4.1 Batches")
 ```
 
 ```{r, include=FALSE}
 
-metadata_4.1_cut %>%
+metadata2 %>%
   group_by(collection_date, tool_lineage) %>%
   summarise(count = n()) %>%
   filter(!(tool_lineage %in% c("INVALID"))) %>%
@@ -614,9 +560,9 @@ fails <- runresults %>% filter(assembly_status %in% "FAIL") %>%
 
 ```{r, include=FALSE}
 
-#need to edit this for WDL 
-primers1 <- read.csv("SARS-COV-2_arcticprimers_genes.csv")
-primers2 <- primers1 %>% select(primer, gene)
+## BRINGING IN THE PRIMER POSITIONS FOR PLOT ANNOTATION
+
+primers2 <- primers_position %>% select(primer, gene)
 
 #create a dataset with the gene assignment
 combo_4.1 <- left_join(combo_4.1, primers2, by = c("primer_num" = "primer")) 
