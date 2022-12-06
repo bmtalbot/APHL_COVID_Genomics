@@ -24,9 +24,9 @@ library(lubridate)
 
 amplicons <- read.table("amp_coverage.txt", sep = "\t", header = TRUE)
 
-primer_positions <- read.table("amp_coverage.txt", sep = ",", header = TRUE)
+primer_positions <- read.table("annotated_primers.csv", sep = ",", header = TRUE)
 
-runresults <- read.table("annotated_primers.csv", sep = ",", header = TRUE, na.strings = c(""," ", NA), stringsAsFactors = FALSE)
+runresults <- read.table("sequencerun_data.csv", sep = ",", header = TRUE, na.strings = c(""," ", NA), stringsAsFactors = FALSE)
 
 runresults$batchid <- str_remove(runresults$batchid, "batch_")
 
