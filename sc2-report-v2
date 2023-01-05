@@ -497,7 +497,7 @@ clean_plot <- ggplot(lastset, aes(x=batchid, y=fastqc_clean_pairs)) +
 ll_amplicons <- amplicons %>% 
   mutate(primer_num = as.numeric(sub("nCoV19_","",primer)), .before = primer) %>%
   select(-primer) %>% 
-  gather("sequence","reads",2:94) %>%
+  gather("sequence","reads",-1) %>%
   mutate(sequence = sub("X", "", sequence, fixed = TRUE))
 
 #filtering out metadata for a smaller dataset
