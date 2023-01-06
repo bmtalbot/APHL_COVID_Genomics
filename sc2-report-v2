@@ -562,7 +562,7 @@ fails <- runresults %>% filter(assembly_status %in% "FAIL") %>%
 
 ## BRINGING IN THE PRIMER POSITIONS FOR PLOT ANNOTATION
 
-primers2 <- primer_position %>% select(primer, gene)
+primers2 <- primer_positions %>% select(primer, gene)
 
 #create a dataset with the gene assignment
 combo_4.1 <- left_join(combo_4.1, primers2, by = c("primer_num" = "primer")) 
