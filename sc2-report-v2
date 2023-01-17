@@ -527,9 +527,13 @@ metadata2 <- metadata2 %>% filter(!(grepl("FAIL", metadata2$assembly_status) | g
 ```
 
 ```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
-ggplot(metadata2, aes(x=tool_lineage)) + geom_bar() +
+
+title = paste("Count of Lineage among Passing SC2 Assemblies\n from",tail(runresults$batchid[!is.na(runresults$batchid)],n=1))
+
+metadata2 %>% filter(batchid %in% tail(runresults$batchid[!is.na(runresults$batchid)],n=1)) %>%
+ggplot(aes(x=tool_lineage)) + geom_bar() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), panel.background = element_blank()) + 
-  labs(x = "SARS-CoV-2 Lineages", y = "Count", title = "Count of Lineage among Passing SC2 Assemblies from Arctic v.4.1 Batches")
+  labs(x = "SARS-CoV-2 Lineages", y = "Count", title = title)
 ```
 
 ```{r, include=FALSE}
