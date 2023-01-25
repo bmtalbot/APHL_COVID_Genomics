@@ -491,7 +491,7 @@ clean_plot <- ggplot(lastset, aes(x=batchid, y=fastqc_clean_pairs)) +
 ```
 
 # Amplicon Statitics
-```{r echo=FALSE, include=FALSE}
+```{r echo=FALSE, include=FALSE, warning=FALSE,message=FALSE}
 
 #creating a line list of the primers with sequencing information
 ll_amplicons <- amplicons %>% 
@@ -526,7 +526,7 @@ metadata2 <- metadata2 %>% filter(!(grepl("FAIL", metadata2$assembly_status) | g
 
 ```
 
-```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE,message=FALSE}
+```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE, message=FALSE}
 
 title = paste("Count of Lineage among Passing SC2 Assemblies\n from",tail(runresults$batchid[!is.na(runresults$batchid)],n=1))
 
@@ -581,7 +581,7 @@ plot_batches <-
   geom_line(data = combo_4.1[which(combo_4.1$batchid %in% Amplicons_Set),] %>% 
   filter(assembly_status %in% "PASS") %>%
   group_by(batchid, primer_num) %>%
-  summarise(mean_reads = mean(reads)), mapping = aes(x = primer_num, y = mean_reads, color = batchid)) +
+  summarise(mean_reads = mean(reads)), mapping = aes(x = primer_num, y = mean_reads, color = batchid),position=position_jitter(w=0.02, h=0)) +
   geom_vline(xintercept = 73) +
   geom_vline(xintercept = 86) +
   geom_vline(xintercept = 88) +
