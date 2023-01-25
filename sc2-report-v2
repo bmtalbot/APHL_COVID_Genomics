@@ -13,7 +13,6 @@ header-includes:
 #sansfont: Roboto
 urlcolor: purplepeopleeater
 ---
-
 ```{r, echo=FALSE, include=FALSE}
 
 library(crayon)
@@ -526,7 +525,7 @@ metadata2 <- metadata2 %>% filter(!(grepl("FAIL", metadata2$assembly_status) | g
 
 ```
 
-```{r echo=FALSE,  fig.align = "center", fig.show="hold", out.width="100%", warning=FALSE, message=FALSE}
+```{r echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.align = "center", fig.show="hold", out.width="100%"}
 
 title = paste("Count of Lineage among Passing SC2 Assemblies\n from",tail(runresults$batchid[!is.na(runresults$batchid)],n=1))
 
