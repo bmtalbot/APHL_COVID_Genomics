@@ -13,6 +13,9 @@ header-includes:
 #sansfont: Roboto
 urlcolor: purplepeopleeater
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, error = FALSE)
+```
 ```{r, echo=FALSE, include=FALSE}
 
 library(crayon)
