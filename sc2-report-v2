@@ -75,11 +75,6 @@ runresults <- runresults[order(runresults$batchid),]
     \color{purplepeopleeater}\leaders\hrule height \headrulewidth\hfill}}
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
-```
-
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
 
 
