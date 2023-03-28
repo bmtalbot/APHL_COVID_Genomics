@@ -372,7 +372,7 @@ Assemblies_Set <- Assemblies$batchid %>% unique() %>% tail(8)
 assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Set),], aes(x=Percent, y=batchid, fill=assembly_status, color=batchid)) +
   geom_bar(position="stack", stat="identity", size = 2) +
   scale_fill_manual(values=c(cols)) +
-  scale_color_manual(values=c(rep("white", times=7),"black")) +
+  scale_color_manual(values=c(rep("white", times=8),"black")) +
   ggtitle("Assemblies Status of Sequences") +
   labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Values in bars represent percent (number) of\nsequences in category") +
   theme_classic() +
