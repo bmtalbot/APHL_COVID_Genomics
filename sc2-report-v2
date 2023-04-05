@@ -504,13 +504,13 @@ plot_batches <-
   filter(assembly_status %in% "PASS") %>%
   group_by(batchid, primer_num) %>%
   summarise(mean_reads = mean(reads)), mapping = aes(x = primer_num, y = mean_reads, color = batchid),position=position_jitter(w=0.02, h=0)) +
-  geom_vline(xintercept = 73) +
-  geom_vline(xintercept = 86) +
-  geom_vline(xintercept = 88) +
-  geom_vline(xintercept = 89) +
-  geom_vline(xintercept = 92) +
-  geom_vline(xintercept = 94) +
-  geom_vline(xintercept = 96) +
+  # geom_vline(xintercept = 73) +
+  # geom_vline(xintercept = 86) +
+  # geom_vline(xintercept = 88) +
+  # geom_vline(xintercept = 89) +
+  # geom_vline(xintercept = 92) +
+  # geom_vline(xintercept = 94) +
+  # geom_vline(xintercept = 96) +
   labs(x = "Primer Number", y = "Mean number of reads per batch", title = "Arctic v4.1 SARS-CoV-2 Sequences", color = "Batch ID", caption = "Dashed line represents the average of displayed batches") +
   theme(axis.text.x = element_text(angle = 45), 
         panel.background = element_blank()) + 
