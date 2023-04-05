@@ -378,7 +378,7 @@ assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Se
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5, size=14), axis.text.y=element_text(color=c(rep("black",times=10),"blue"),face="bold"), plot.caption = element_text(hjust = 0, size = 12),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3, size=12),axis.title.x = element_text(size = 12), legend.position="bottom", plot.margin = unit(c(0,0.3,0,0.3), "cm")) +
   guides(fill=guide_legend(title="Assembly Status"), color = FALSE) +
-  geom_text(label= paste(Percent,"\n(",n,")"),color="white", position = position_stack(), face="bold")
+  geom_text(aes(label= paste(Percent,"\n(",n,")"),color="white", position = position_stack(), face="bold"))
  #geom_text(aes(label= paste(Percent,"\n(",n,")"),color="white", position = "stack", hjust= 1.6, face="bold"))
 
 #plot <- plot_ly(data=tail(clean_batchsummary_table,n=5), x = ~batchid, y = ~pass_number, type = 'bar', name = 'Pass') %>%  add_trace(y = ~fail_number, name = 'Fail') %>%
