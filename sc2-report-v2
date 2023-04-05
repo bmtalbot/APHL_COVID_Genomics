@@ -495,7 +495,7 @@ combo_4.1 <- left_join(combo_4.1, primers2, by = c("primer_num" = "primer"))
 combo_4.1 <- combo_4.1 %>% distinct()
 
 #Can Adjust depending on which batches are being included in the overall dataset
-Amplicons_Set <- combo_4.1$batchid %>% unique() %>% tail(3)
+Amplicons_Set <- combo_4.1$batchid %>% unique() %>% tail(1)
 
 plot_batches <- 
   ggplot() +
