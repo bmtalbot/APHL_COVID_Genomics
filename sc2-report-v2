@@ -377,7 +377,7 @@ assemblies_plot <- ggplot(Assemblies[which(Assemblies$batchid %in% Assemblies_Se
   scale_fill_manual(values=c(cols)) +
   scale_color_manual(values=c(rep("white", times=8),"black")) +
   ggtitle("Assemblies Status of Sequences") +
-  labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Values in bars represent \npercent (number/total) of\nsequences in category") +
+  labs( x= "Percent of Sequences in Batch", y = "Batch ID", caption = "Bar values:percent (n/total) of\nsequences in category") +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5, size=14), axis.text.y=element_text(color=c(rep("black",times=10),"blue"),face="bold"), plot.caption = element_text(hjust = 0, size = 12),text = element_text(family="serif"), axis.title.y = element_text(vjust = 3, size=12),axis.title.x = element_text(size = 12), legend.position="bottom", plot.margin = unit(c(0,0.3,0,0.3), "cm")) +
   guides(fill=guide_legend(title="Assembly Status"), color = FALSE) +
