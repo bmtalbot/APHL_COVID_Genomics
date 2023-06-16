@@ -1,0 +1,56 @@
+#LABEL maintainer="Brooke M Talbot"
+
+# base image 
+FROM rocker/rstudio
+
+# install ubuntu dependencies
+RUN apt-get update && apt-get install -y make \
+  pandoc \
+  wget \
+  texlive-latex-base \
+  texlive-fonts-recommended \
+  texlive-latex-recommended \
+  texlive-latex-extra \
+  texlive-xetex \
+  fonts-roboto \
+  r-cran-dplyr \
+  r-cran-devtools \
+  r-cran-lubridate \
+  r-cran-rmarkdown \
+  r-cran-knitr  \
+  r-cran-crayon \
+  r-cran-formattable \
+  r-cran-tibble \
+  #r-cran-data.table \
+  r-cran-scales \
+  r-cran-tidyverse \
+  #r-cran-formattable \
+  #r-cran-yaml \
+  r-cran-ggplot2 \
+  #r-cran-plotly \
+  #r-cran-heatmaply \
+  #r-cran-reticulate \
+  #r-cran-kableExtra \
+  #r-cran-pander \
+  #r-cran-flextable \
+  #r-cran-huxtable \
+  #r-cran-officer \
+  #r-cran-officedown \
+  r-cran-phytools \
+  r-cran-viridis \
+  #r-cran-mnormt \
+  r-cran-cowplot && \
+  ##r-cran-BiocManager && \
+  mkdir /data
+
+FROM bioconductor/bioconductor_docker:devel
+
+RUN apt-get update
+RUN R -e 'BiocManager::install(ask = F)' && R -e 'BiocManager::install(c("magick", \
+    "tidyverse", "vroom", "VennDiagram", "PerformanceAnalytics", \
+    "GO.db", "corrplot", "ggtree", ask = F))'
+
+# install R packages
+#RUN R -e "tinytex::install_tinytex()"
+ENV PATH="$PATH:/data"
+WORKDIR /data
