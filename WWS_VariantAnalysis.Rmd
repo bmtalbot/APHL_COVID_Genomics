@@ -1,0 +1,189 @@
+---
+title: "Wastewater Variants Visualization"
+author: Emily Tyszka & Brooke Talbot
+output: html_document
+date: '2023-10-25'
+---
+
+# 2023 Data
+````{r cleaning, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+# Load in Freja data 
+input <-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/WWS/demixed_aggregate_2023.txt") 
+
+#read as a table
+data <-read.table(input, header = TRUE, sep = "\t")
+
+acc <- data.frame(data$X)
+names(acc)[1] <- "Accession Number"
+acc$rn <- row.names(acc) #create a row name for accession numbers df
+view(acc)
+
+##Counting the maximum number of lineages in the data set 
+
+leng_data <- c()
+for (i in 1:nrow(data)) {
+
+leng_data <- append(leng_data, print(length(gregexpr(" ", data$lineages)[[i]])))
+
+}
+n <- max(leng_data) + 1
+
+
+#clean lineages data
+Lineages <- str_split_fixed(data$lineages, " ", n) #split into new column every time there's a space (after a new listed lineage name). n is calculated from the input dataset to account for different strains potentially detected at different sampling effors
+
+Lineages <- data.frame(Lineages)
+Lineages$rn <- row.names(Lineages) #add row numbers
+Lineages <- Lineages %>% left_join(acc, by = c("rn" = "rn")) #join accessions to lineages by row number
+
+##Identifying the last column in the data
+lastcol <- ncol(Lineages)
+
+Lineages_long <- gather(Lineages, index, Lineage, X1:lastcol, factor_key=TRUE)  #convert long to short - X1 X2 etc labelled as "index". corresponds with the number of columns
+Lineages_long$index2 <- paste(Lineages_long$`Accession Number`, Lineages_long$index, sep=".") #create secondary index (WW22005.X1, WW22005.X2 etc) - this is identical between freq and lineage tables and will be used to merge them
+view(Lineages_long)
+
+#clean lineage frequencies data
+freqs <- str_split_fixed(data$abundances, " ", n) #all here is the same as above, just using the frequencies that pertain to the lineages
+freqs <- data.frame(freqs)
+freqs$rn <- row.names(freqs)
+freqs <- freqs %>% left_join(acc, by = c("rn" = "rn"))
+freqs_long <- gather(freqs, index, Frequency, X1:lastcol, factor_key=TRUE) #
+freqs_long$index2 <- paste(freqs_long$`Accession Number`, freqs_long$index, sep=".")
+freqs_long <- freqs_long %>% select(index2, Frequency)
+view(freqs_long)
+
+#merge together lineages and their frequencies
+all <- Lineages_long %>% full_join(freqs_long, by = c("index2" = "index2")) #merge by the secondary index
+all <- subset(all, select = - c(index, rn, index2)) #cleaning by dropping merge-associated columns
+all <- all %>% drop_na(Frequency) #drop NAs
+all <- all[!is.na(as.numeric(all$Frequency)), ] 
+all$Frequency <- as.numeric(all$Frequency)
+
+#merge with dates for each accession
+#dates1<-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/WWS/DateAccession.xlsx") #matches dates to accessions
+#dates<-read_excel(dates1)
+#all <- all %>% full_join(dates, by = c("Accession Number" = "Accession Number")) #link data with date decoder ring
+all <- all %>% drop_na(Frequency) #drop NAs
+view(all) 
+```
+
+## Variants of Concern, Variants of Interest, and Variants being monitored ##
+```{r}
+
+## Creating a list of the variants of concern from CDC ##
+## voc, VBM, and VOI as of 1 Sept 2023 ##
+
+voc = c("BA.2.86",
+        "XBB.1.9.1",
+        "XBB.1.9.2",
+        "XBB.2.3",
+        "XBB.1.16",
+        "XBB.1.16.6",
+        "XBB.1.5",
+        "CH.1.1",
+        "BA.2.74",
+        'B.1.1.7',
+        'B.1.351',
+        'P.1',
+        'B.1.617.2',
+        "B.1.427",
+        "B.1.429",
+        "B.1.525",
+        "B.1.526",
+        'B.1.617.1',
+        'B.1.1.529',
+        'P.2',
+        'B.1.621',
+        'B.1.621.1', 
+        'EG.5',
+        'FL.1.5.1',
+        'BA.1')
+
+## Another strategy is to keep a running list of variants of concern (historical and current), then use a subsetter, such as the name, type, or year it was selected as a filter. 
+
+
+```
+
+```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+
+all$LineageClean <- substr(all$Lineage, 1, 4)
+#all$LineageClean <- substr(all$Lineage, 1, 6)
+
+ggplot(all, aes(fill=LineageClean, y= Frequency, x=`Accession Number`)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Frequency of Main Lieages Per Sample")
+
+```
+
+```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+
+all$LineageClean <- substr(all$Lineage, 1, 4)
+#all$LineageClean <- substr(all$Lineage, 1, 6)
+library(ggplot2)
+all %>% ggplot(aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Cleaned Lineage Frequency Plot\n Ordered for early 2023")
+#ggsave("wonderfulplot_2023.png")
+
+
+## filter to frequencies approaching or greater than 1 %
+all %>% filter(Frequency >= 0.01) %>%
+ggplot( aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Sub Lineage Frequency >0.9%, By Major Lineage") + 
+facet_wrap(~LineageClean) 
+ggsave("Facet_lineages_2023.png")
+
+## Nice, this is more telling. Now we can look even more into our problematic lineages: 
+
+all %>% filter(Frequency >= 0.01) %>% filter(LineageClean %in% "XBB.") %>%
+ggplot( aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Cleaned XBB Lineage Frequency Plot Ordered for early 2023") + geom_hline(yintercept = 0.01, linetype = "dashed") +
+  #scale_colour_discrete(guide = "none") + 
+  annotate("text", x = 0.75, y = -0.01, label = "1% Threshold")
+ggsave("Facet_XBB_2023.png")
+
+```
+
+## Looking for sublineages that are averaging a higher percentage
+
+```{r}
+## First pass, see if there are any sublianges within all of the major lineages that have a higher frequency that 1% in each sequence
+
+library(dplyr)
+sumtable <- all%>% dplyr::group_by(LineageClean) %>% dplyr::summarise(count = n(), sublineage_mean = 100*mean(Frequency), Upper_SE = 100*((mean(Frequency) + sd(Frequency)/sqrt(length((Frequency))))), Lower_SE = 100*((mean(Frequency) - sd(Frequency)/sqrt(length((Frequency))))), maxium = 100*max(Frequency))
+
+sumtable <- sumtable[order(-sumtable$sublineage_mean),]
+
+sumtable
+
+knitr::kable(sumtable, "html", col.names = c("Clean Lineage", "No. Samples", "Mean Abundance (%)", "Mean Upper SE ", "Mean Lower SE", "Maximum Abundance"), align = "c")
+
+
+
+```
+
+## Let's answer the question: Where do the variants of concern average in terms of dominance compared to other lineages? ##
+```{r}
+
+## Filtered for just the variants of Concern ##
+all %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Variants of Interest, Concern, and Monitored  Frequency Plot\n Ordered for early 2023") + 
+facet_wrap(~Lineage) 
+
+## Looking at the plot again ##
+
+mean_sublin <- all %>% dplyr::group_by(Lineage) %>% dplyr::summarise(sublineage_mean = mean(Frequency))
+
+
+
+```
+
