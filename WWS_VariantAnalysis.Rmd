@@ -14,10 +14,12 @@ library(dplyr)
 library(ggplot2)
 library(plotly) ##make sure htmltools packages is up to date 
 
+
 ```
 
+
 # Data
-````{r cleaning, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+```{r cleaning, include=FALSE, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
 
 # Load in Freyja data (a demixed and aggregated file)
 input <-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/APHL_Genomics_Specialist/WWS/demixed_aggregate_12_23.tsv") 
@@ -81,7 +83,7 @@ view(all)
 ```
 
 ## Variants of Concern, Variants of Interest, and Variants being monitored ##
-```{r}
+```{r, include=FALSE}
 
 ## Creating a list of the variants of concern from CDC ##
 ## voc, VBM, and VOI as of 1 Sept 2023 ##
@@ -117,23 +119,23 @@ voc = c("BA.2.86",
 
 ```
 
-```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex', include=FALSE}
 
 ## Making an interactive plot since there are so many lineages
 
+all$LineageClean <- substr(all$Lineage, 1, 4)
+#all$LineageClean <- substr(all$Lineage, 1, 6)
 
 ## Adds a label 
 all <- all %>%
   mutate(mylabel = paste("Lineage:", LineageClean))
 
-all$LineageClean <- substr(all$Lineage, 1, 4)
-#all$LineageClean <- substr(all$Lineage, 1, 6)
-
 p <- ggplot(all, aes(fill=LineageClean, y= Frequency, x=`Accession Number`, text = mylabel)) + 
   geom_bar(position='stack', stat='identity', show.legend = FALSE) + theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
   scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Frequency of Main Lineages Per Sample") 
-
+```
+```{r}
 ggplotly(p, tooltip = c("mylabel"))
 
 ```
@@ -199,5 +201,3 @@ pdates <- all_dates %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y=
 facet_wrap(~Lineage) 
 
 ggplotly(pdates, tooltip = c("label"))
-
-```
