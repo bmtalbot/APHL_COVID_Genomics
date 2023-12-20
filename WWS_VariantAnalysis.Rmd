@@ -2,13 +2,25 @@
 title: "Wastewater Variants Visualization"
 author: Emily Tyszka & Brooke Talbot
 output: html_document
-date: '2023-10-25'
+date: '2023-12-20'
 ---
 
-# 2023 Data
+# Libraries
+```{r}
+
+library(stringr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plotly) ##make sure htmltools packages is up to date 
+
+```
+
+# Data
 ````{r cleaning, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
-# Load in Freja data 
-input <-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/WWS/demixed_aggregate_2023.txt") 
+
+# Load in Freyja data (a demixed and aggregated file)
+input <-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/APHL_Genomics_Specialist/WWS/demixed_aggregate_12_23.tsv") 
 
 #read as a table
 data <-read.table(input, header = TRUE, sep = "\t")
@@ -16,7 +28,7 @@ data <-read.table(input, header = TRUE, sep = "\t")
 acc <- data.frame(data$X)
 names(acc)[1] <- "Accession Number"
 acc$rn <- row.names(acc) #create a row name for accession numbers df
-view(acc)
+
 
 ##Counting the maximum number of lineages in the data set 
 
@@ -35,6 +47,8 @@ Lineages <- str_split_fixed(data$lineages, " ", n) #split into new column every 
 Lineages <- data.frame(Lineages)
 Lineages$rn <- row.names(Lineages) #add row numbers
 Lineages <- Lineages %>% left_join(acc, by = c("rn" = "rn")) #join accessions to lineages by row number
+## reordering the index columns
+Lineages <- Lineages %>% select(rn, `Accession Number`, X1:ncol(Lineages))
 
 ##Identifying the last column in the data
 lastcol <- ncol(Lineages)
@@ -48,6 +62,8 @@ freqs <- str_split_fixed(data$abundances, " ", n) #all here is the same as above
 freqs <- data.frame(freqs)
 freqs$rn <- row.names(freqs)
 freqs <- freqs %>% left_join(acc, by = c("rn" = "rn"))
+freqs <- freqs %>% select(rn, `Accession Number`, X1:ncol(freqs))
+
 freqs_long <- gather(freqs, index, Frequency, X1:lastcol, factor_key=TRUE) #
 freqs_long$index2 <- paste(freqs_long$`Accession Number`, freqs_long$index, sep=".")
 freqs_long <- freqs_long %>% select(index2, Frequency)
@@ -55,15 +71,11 @@ view(freqs_long)
 
 #merge together lineages and their frequencies
 all <- Lineages_long %>% full_join(freqs_long, by = c("index2" = "index2")) #merge by the secondary index
-all <- subset(all, select = - c(index, rn, index2)) #cleaning by dropping merge-associated columns
+all <- subset(all, select = - c(index, index2)) #cleaning by dropping merge-associated columns
 all <- all %>% drop_na(Frequency) #drop NAs
 all <- all[!is.na(as.numeric(all$Frequency)), ] 
 all$Frequency <- as.numeric(all$Frequency)
 
-#merge with dates for each accession
-#dates1<-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/WWS/DateAccession.xlsx") #matches dates to accessions
-#dates<-read_excel(dates1)
-#all <- all %>% full_join(dates, by = c("Accession Number" = "Accession Number")) #link data with date decoder ring
 all <- all %>% drop_na(Frequency) #drop NAs
 view(all) 
 ```
@@ -107,47 +119,40 @@ voc = c("BA.2.86",
 
 ```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
 
+## Making an interactive plot since there are so many lineages
+
+
+## Adds a label 
+all <- all %>%
+  mutate(mylabel = paste("Lineage:", LineageClean))
+
 all$LineageClean <- substr(all$Lineage, 1, 4)
 #all$LineageClean <- substr(all$Lineage, 1, 6)
 
-ggplot(all, aes(fill=LineageClean, y= Frequency, x=`Accession Number`)) + 
-  geom_bar(position='stack', stat='identity') + theme_bw() +
+p <- ggplot(all, aes(fill=LineageClean, y= Frequency, x=`Accession Number`, text = mylabel)) + 
+  geom_bar(position='stack', stat='identity', show.legend = FALSE) + theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
-  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Frequency of Main Lieages Per Sample")
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Frequency of Main Lineages Per Sample") 
+
+ggplotly(p, tooltip = c("mylabel"))
 
 ```
 
-```{r cleaner Lineage plot, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
-
-all$LineageClean <- substr(all$Lineage, 1, 4)
-#all$LineageClean <- substr(all$Lineage, 1, 6)
-library(ggplot2)
-all %>% ggplot(aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
-  geom_bar(position='stack', stat='identity') + theme_bw() +
-  theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
-  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Cleaned Lineage Frequency Plot\n Ordered for early 2023")
-#ggsave("wonderfulplot_2023.png")
+```{r cleaner Lineage plot at threshold, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
 
 
+## Interactive Facet Plot, but still a little clunky
 ## filter to frequencies approaching or greater than 1 %
-all %>% filter(Frequency >= 0.01) %>%
+p2<- all %>% filter(Frequency >= 0.01) %>%
 ggplot( aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
   geom_bar(position='stack', stat='identity') + theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
   scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Sub Lineage Frequency >0.9%, By Major Lineage") + 
 facet_wrap(~LineageClean) 
-ggsave("Facet_lineages_2023.png")
+#ggsave("Facet_lineages_2023.png")
 
-## Nice, this is more telling. Now we can look even more into our problematic lineages: 
+ggplotly(p2)
 
-all %>% filter(Frequency >= 0.01) %>% filter(LineageClean %in% "XBB.") %>%
-ggplot( aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
-  geom_bar(position='stack', stat='identity') + theme_bw() +
-  theme(axis.text.x = element_text(angle = 90)) +
-  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Cleaned XBB Lineage Frequency Plot Ordered for early 2023") + geom_hline(yintercept = 0.01, linetype = "dashed") +
-  #scale_colour_discrete(guide = "none") + 
-  annotate("text", x = 0.75, y = -0.01, label = "1% Threshold")
-ggsave("Facet_XBB_2023.png")
 
 ```
 
@@ -176,14 +181,23 @@ knitr::kable(sumtable, "html", col.names = c("Clean Lineage", "No. Samples", "Me
 all %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
   geom_bar(position='stack', stat='identity') + theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
-  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Variants of Interest, Concern, and Monitored  Frequency Plot\n Ordered for early 2023") + 
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Variants of Interest, Concern, and Monitored  Frequency Plot") + 
 facet_wrap(~Lineage) 
 
-## Looking at the plot again ##
+## Looking at the emergence of Variants of Concern by time
+#merge with dates for each accession
+dates1<-("C:/Users/Brooke/OneDrive/APHL_Genomics_Specialist/APHL_Genomics_Specialist/WWS/wws_dates_12_23.tsv") #matches dates to accessions
+dates<-read.table(dates1, sep = "\t", header = TRUE)
+all_dates <- all %>% dplyr::full_join(dates, by = c("Accession Number" = "entity.wws_id")) #link data with date decoder ring
 
-mean_sublin <- all %>% dplyr::group_by(Lineage) %>% dplyr::summarise(sublineage_mean = mean(Frequency))
+all_dates <- all_dates %>% mutate(label = paste("Collection Date:", collection_date))
 
+pdates <- all_dates %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y= Frequency, x=collection_date, text = label)) + 
+  geom_bar(position='stack', stat='identity') + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
+  scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Variants of Interest, Concern, and Monitored  Frequency Plot by Date", x = "Collection Date") + 
+facet_wrap(~Lineage) 
 
+ggplotly(pdates, tooltip = c("label"))
 
 ```
-
