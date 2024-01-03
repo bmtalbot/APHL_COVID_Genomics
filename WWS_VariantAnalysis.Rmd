@@ -6,7 +6,7 @@ date: '2023-12-20'
 ---
 
 # Libraries
-```{r}
+```{r, include=FALSE, echo=FALSE , warning=FALSE, message=FALSE}
 
 library(stringr)
 library(tidyverse)
@@ -17,8 +17,8 @@ library(plotly) ##make sure htmltools packages is up to date
 
 ```
 
-
-# Data
+# Data Source
+These data are generated from single site wastewater samples which were sequenced for evidence of SARS-CoV-2. Abundances of viral lineages were calculated using Freyja. 
 ```{r cleaning, include=FALSE, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
 
 # Load in Freyja data (a demixed and aggregated file)
@@ -81,9 +81,8 @@ all$Frequency <- as.numeric(all$Frequency)
 all <- all %>% drop_na(Frequency) #drop NAs
 view(all) 
 ```
-
-## Variants of Concern, Variants of Interest, and Variants being monitored ##
 ```{r, include=FALSE}
+## Variants of Concern, Variants of Interest, and Variants being monitored ##
 
 ## Creating a list of the variants of concern from CDC ##
 ## voc, VBM, and VOI as of 1 Sept 2023 ##
@@ -128,19 +127,19 @@ all$LineageClean <- substr(all$Lineage, 1, 4)
 
 ## Adds a label 
 all <- all %>%
-  mutate(mylabel = paste("Lineage:", LineageClean))
+  mutate(mylabel = paste("Lineage:", LineageClean, "\n","Sample:",`Accession Number`))
 
 p <- ggplot(all, aes(fill=LineageClean, y= Frequency, x=`Accession Number`, text = mylabel)) + 
   geom_bar(position='stack', stat='identity', show.legend = FALSE) + theme_bw() +
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.key.size = unit(.4, 'cm'))+
   scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Frequency of Main Lineages Per Sample") 
 ```
-```{r}
+```{r, echo=false, fig.show = "asis"}
 ggplotly(p, tooltip = c("mylabel"))
 
 ```
 
-```{r cleaner Lineage plot at threshold, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex'}
+```{r cleaner Lineage plot at threshold, echo=FALSE , warning=FALSE, message=FALSE, results = "asis", type = 'latex', fig.height=10, fig.width=12}
 
 
 ## Interactive Facet Plot, but still a little clunky
@@ -155,29 +154,23 @@ facet_wrap(~LineageClean)
 
 ggplotly(p2)
 
-
 ```
+## Lineage Abundance Across Sample Set 
 
-## Looking for sublineages that are averaging a higher percentage
-
-```{r}
-## First pass, see if there are any sublianges within all of the major lineages that have a higher frequency that 1% in each sequence
+```{r, echo=false}
+## First pass, see if there are any lianges within all of the major lineages that have a higher frequency that 1% in each sequence
 
 library(dplyr)
-sumtable <- all%>% dplyr::group_by(LineageClean) %>% dplyr::summarise(count = n(), sublineage_mean = 100*mean(Frequency), Upper_SE = 100*((mean(Frequency) + sd(Frequency)/sqrt(length((Frequency))))), Lower_SE = 100*((mean(Frequency) - sd(Frequency)/sqrt(length((Frequency))))), maxium = 100*max(Frequency))
+sumtable <- all%>% dplyr::group_by(LineageClean) %>% dplyr::summarise(count = n(), lineage_mean = 100*mean(Frequency), Upper_SE = 100*((mean(Frequency) + sd(Frequency)/sqrt(length((Frequency))))), Lower_SE = 100*((mean(Frequency) - sd(Frequency)/sqrt(length((Frequency))))), maxium = 100*max(Frequency))
 
-sumtable <- sumtable[order(-sumtable$sublineage_mean),]
+sumtable <- sumtable[order(-sumtable$lineage_mean),]
 
-sumtable
-
-knitr::kable(sumtable, "html", col.names = c("Clean Lineage", "No. Samples", "Mean Abundance (%)", "Mean Upper SE ", "Mean Lower SE", "Maximum Abundance"), align = "c")
-
-
+knitr::kable(sumtable, "html", col.names = c("Lineage", "Samples", "Mean Abundance (%)", "Upper SE ", "Lower SE", "Max Abundance"), align = "c", digits = 2)
 
 ```
 
-## Let's answer the question: Where do the variants of concern average in terms of dominance compared to other lineages? ##
-```{r}
+## Variants of Concern, Interest, and Being Monitored ##
+```{r, include=FALSE, echo=FALSE , warning=FALSE, message=FALSE}
 
 ## Filtered for just the variants of Concern ##
 all %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y= Frequency, x=`Accession Number`)) + 
@@ -199,5 +192,6 @@ pdates <- all_dates %>% filter(Lineage %in% voc) %>% ggplot(aes(fill=Lineage, y=
   theme(axis.text.x = element_text(angle = 90)) + theme(legend.position = "none")+
   scale_y_continuous(limits = c(0, 1)) + labs(color = "Variants", title = "Variants of Interest, Concern, and Monitored  Frequency Plot by Date", x = "Collection Date") + 
 facet_wrap(~Lineage) 
-
+```
+```{r, echo=false, fig.show='hold'}
 ggplotly(pdates, tooltip = c("label"))
